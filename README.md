@@ -22,6 +22,7 @@ The goal of the challenge is to find the "best" correlation between a range of s
 the next earthquake, so that we can predict the time_to_failure column given only the seismic_activity column.
 
 In the training data, we can observe an earthquake every time the time_to_failure values jumps from zero up to a higher value, giving us 16 earthquakes in total:
+
 ![Seismic activity](https://github.com/phillikus/earthquake_predictions/blob/master/plots/summary.png)
 
 To download the training/test data, please check out the link mentioned above.
