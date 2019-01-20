@@ -8,7 +8,7 @@ from models.rnn import Rnn
 
 def predict(model):
     submission = pd.read_csv(
-        'data/sample_submission.csv',
+        '../data/sample_submission.csv',
         index_col='seg_id',
         dtype={"time_to_failure": np.float32})
 
