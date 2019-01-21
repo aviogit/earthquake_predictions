@@ -34,15 +34,12 @@ def main():
     summary.to_csv('../data/stat_summary.csv')
 
     training_set = summary.values
-    feature_count = 14
+    feature_count = summary.values.shape[-1] - 1
 
     model = Rnn(feature_count)
-    model.fit(training_set, epochs=100)
+    model.fit(training_set, batch_size=64, epochs=50)
 
-    # model = RnnLSTM(feature_count)
-    # model.fit(training_set, epochs=200)
-
-    # save_plot_loss(model)
+    save_plot_loss(model)
     predict(model)
 
 
