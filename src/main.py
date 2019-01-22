@@ -26,8 +26,7 @@ def main():
     # training_set = pd.read_csv('data/train.csv', dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
     # visualizer.plot_data(training_set)
     # preprocessor.split_sequence('data/train.csv')
-
-    training_set = pd.read_csv('../data/train.csv', dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
+    training_set = pd.read_csv('../data/train0.csv', dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
     save_plot_data(training_set)
 
     summary = get_stat_summaries(training_set, 150000)
@@ -37,9 +36,9 @@ def main():
     feature_count = summary.values.shape[-1] - 1
 
     model = Rnn(feature_count)
-    model.fit(training_set, batch_size=64, epochs=50)
+    model.fit(training_set, batch_size=32, epochs=200)
 
-    save_plot_loss(model)
+    # save_plot_loss(model)
     predict(model)
 
 

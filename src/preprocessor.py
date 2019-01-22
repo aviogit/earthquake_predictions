@@ -23,8 +23,8 @@ def _get_trend(data: pd.core.frame.DataFrame, abs=False):
 def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_data: pd.core.frame.DataFrame):
     stat_summary.loc[index, 'mean'] = step_data.mean()
     stat_summary.loc[index, 'std'] = step_data.std()
-    stat_summary.loc[index, 'minimum'] = step_data.min()
-    stat_summary.loc[index, 'maximum'] = step_data.max()
+    stat_summary.loc[index, 'min'] = step_data.min()
+    stat_summary.loc[index, 'max'] = step_data.max()
 
     absolutes = np.abs(step_data)
 
@@ -132,7 +132,7 @@ def split_sequence(file_path: str):
             signal, time_to_failure = int(signal), float(time_to_failure)
 
             if time_to_failure > last_time_to_failure:
-                export_sequence(counter, tuples)
+                _export_sequence(counter, tuples)
                 tuples = []
                 counter += 1
 
@@ -140,7 +140,7 @@ def split_sequence(file_path: str):
             last_time_to_failure = time_to_failure
 
 
-def export_sequence(id: int, data: List[Tuple[int, float]]):
+def _export_sequence(id: int, data: List[Tuple[int, float]]):
     with open('../data/train{0}.csv'.format(id), mode='w') as target_file:
         writer = csv.writer(target_file, delimiter=',')
 
