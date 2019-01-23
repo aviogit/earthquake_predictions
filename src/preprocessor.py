@@ -67,7 +67,7 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
     hann_150 = hann(150)
     stat_summary.loc[index, 'hann_window_mean'] = (convolve(step_data, hann_150, mode='same') / sum(hann_150)).mean()
 
-    for windows in [10, 100]:
+    for windows in [10, 100, 1000]:
         roll_std = step_data.rolling(windows).std().dropna().values
         windows_str = str(windows)
 

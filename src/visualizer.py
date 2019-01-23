@@ -15,3 +15,4 @@ def save_plot_data(data: pd.core.frame.DataFrame, step: int = 1000):
     axis2.plot(x_axis, data.iloc[:, 1][0::step], '-r')
     axis2.set_ylabel('time to failure', color='r')
     plt.savefig('../plots/summary.png', bbox_inches='tight')
+    plt.close()

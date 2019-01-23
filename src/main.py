@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
 
-from visualizer import save_plot_data, save_plot_loss
+from visualizer import save_plot_data
 from preprocessor import get_stat_summaries
+from feature_extractor import extract
 from models.rnn import Rnn
 
 
@@ -26,14 +27,16 @@ def main():
     # training_set = pd.read_csv('data/train.csv', dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
     # visualizer.plot_data(training_set)
     # preprocessor.split_sequence('data/train.csv')
-    training_set = pd.read_csv('../data/train0.csv', dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
+    training_set = pd.read_csv('../data/train.csv', dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
     save_plot_data(training_set)
 
     summary = get_stat_summaries(training_set, 150000)
     summary.to_csv('../data/stat_summary.csv')
 
     training_set = summary.values
-    feature_count = summary.values.shape[-1] - 1
+    feature_count = training_set.shape[-1] - 1
+
+    # extract(summary.iloc[:, :-1], summary.iloc[:, -1])
 
     model = Rnn(feature_count)
     model.fit(training_set, batch_size=32, epochs=200)
