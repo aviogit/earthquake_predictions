@@ -38,7 +38,6 @@ def main():
     model = Rnn(feature_count)
     model.fit(training_set, batch_size=32, epochs=200)
 
-    # save_plot_loss(model)
     predict(model)
 
 
