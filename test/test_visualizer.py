@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import mock
 
-from visualizer import save_plot_data
+from visualizer import save_summary_plot
 
 
 def get_test_frame():
@@ -25,11 +25,11 @@ def data_frame():
 def test_save_plot_data_throws_with_none_data():
     with mock.patch('matplotlib.pyplot.savefig') as savefig_mock:
         with pytest.raises(Exception):
-            save_plot_data(None)
+            save_summary_plot(None)
 
 
 def test_save_plot_data_works(data_frame: pd.core.frame.DataFrame):
     with mock.patch('matplotlib.pyplot.savefig') as savefig_mock:
-        save_plot_data(data_frame)
+        save_summary_plot(data_frame)
 
     assert savefig_mock.call_count == 1

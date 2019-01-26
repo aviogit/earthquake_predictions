@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
-from keras.layers import Dense, CuDNNGRU, Dropout, LSTM, Flatten
+from keras.layers import Dense, CuDNNGRU, Dropout, LSTM, Flatten, CuDNNLSTM
 from keras.optimizers import adam
 
 
@@ -13,10 +13,18 @@ class Rnn:
         self.scaler = MinMaxScaler(feature_range=(0, self.num_features))
 
         self.model = Sequential()
-        self.model.add(CuDNNGRU(256, input_shape=(self.num_features, 1)))
-        self.model.add(Dense(128, activation='relu'))
-        self.model.add(Dropout(0.1))
+        self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1)))
+        self.model.add(Dense(32, activation='relu'))
         self.model.add(Dense(1))
+
+        # self.model.add(Dense(units=64))
+        # self.model.add(Dropout(0.1))
+        # self.model.add(Dense(units=256))
+        # self.model.add(Dropout(0.1))
+        # self.model.add(Dense(128, activation='relu'))
+        # self.model.add(Flatten())
+        # self.model.add(Dense(32))
+        # self.model.add(Dense(1))
 
         self.model.compile(optimizer=adam(lr=0.005), loss="mae")
 

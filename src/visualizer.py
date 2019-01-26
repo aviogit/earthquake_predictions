@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def save_plot_data(data: pd.core.frame.DataFrame, step: int = 1000):
+def save_summary_plot(data: pd.core.frame.DataFrame, step: int = 1000):
     figure, axis1 = plt.subplots()
     x_axis = np.arange(0, len(data), step)
 
