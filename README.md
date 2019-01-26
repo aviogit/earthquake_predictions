@@ -26,4 +26,5 @@ In the training data, we can observe an earthquake every time the time_to_failur
 ![Seismic activity](https://github.com/phillikus/earthquake_predictions/blob/master/plots/summary.png)
 
 To download the training/test data, please check out the link mentioned above.
-Read more about this challenge [on my blog](https://cheesyprogrammer.com/2019/01/25/competing-on-kaggle-com-for-the-first-time/)
+
+Read more about this challenge [on my blog](https://cheesyprogrammer.com/2019/01/25/competing-on-kaggle-com-for-the-first-time/).
