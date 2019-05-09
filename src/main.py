@@ -3,6 +3,7 @@
 
 import numpy as np
 import pandas as pd
+from datetime import datetime
 
 import sys
 import gzip
@@ -36,21 +37,28 @@ def main(argv):
     # visualizer.plot_data(training_set)
     # preprocessor.split_sequence('data/train.csv')
 
-    # First, gzip the huge training set file, so to make it more manageable
+    # 1. gzip the huge training set file, so to make it more manageable
     # gzip --to-stdout -1 train.csv > ~/LANL-Earthquake-Prediction-train-csv-splitted-gzip-1/train.csv.gz
+
+    # 2. run the program without parameters to make it collect features and save them
+    # ./main.py
+
+    # 3. run the program again, and again (and again) using the saved features by just specifying the features filename
+    # ./main.py /tmp/LANL-Earthquake-Prediction-train-csv-gzipped/stat_summary-parallel-now-hopefully-ok-20190509.csv | tee /tmp/LANL-Earthquake-Prediction-train-csv-gzipped/output-log-`currdate`-`currtime`-feature_count-93-batch_size-32-epochs-1000.txt
+
+    # 4. make a quick comparison with your previous submission (if any) to see how numbers are going... (almost randomly :)
+    # paste -d, submission-orig-20190508.csv submission-features-parallel-ok-20190509-174942-feature_count-93-batch_size-256-epochs-1000.csv | awk -F, '{acc+=($2-$4)*($2-$4) ; print $2-$4} END {print "----------\n"acc/NR}'
+
+    # 5. collect the filled submission file and submit it
+    # kaggle competitions submit -c LANL-Earthquake-Prediction -f /mnt/ros-data/venvs/ml-tutorials/py/LANL-Earthquake-Prediction/earthquake_predictions/src/submission-features-parallel-ok-20190509-174942-feature_count-93-batch_size-256-epochs-1000.csv -m "Another attempt with same model, same good ol' features, just larger batches and more epochs."
+    # 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████| 52.8k/52.8k [00:02<00:00, 19.1kB/s]
+    # Successfully submitted to LANL Earthquake Prediction
 
     if len(argv) > 1:
         print('Loading features from file:', argv[1])
         summary = pd.read_csv(argv[1])
-
-        summary['temp'] = summary['time_to_failure']
-        summary.drop(columns=['time_to_failure'], inplace=True)
-        summary['time_to_failure'] = summary['temp']
-        summary.drop(columns=['temp'], inplace=True)
         summary.drop(columns=['Unnamed: 0'], inplace=True)
-
         print(summary)
-        summary.to_csv(base_dir + '/stat_summary.csv')
     else:
         fname = base_dir + '/train.csv.gz'
         #fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'
@@ -71,13 +79,19 @@ def main(argv):
     feature_count = training_set.shape[-1] - 1
     print(feature_count)
     print(training_set)
-    #sys.exit(0)
+
+    # Training parameters
+    batch_size=256
+    epochs=1000
+    
+    model_name = base_dir + '/earthquake-predictions-keras-model-' + datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs) + '.hdf5'
 
     # extract(summary.iloc[:, :-1], summary.iloc[:, -1])
 
     print(20*'*', 'Start of training', 20*'*')
+    print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
     model = Rnn(feature_count)
-    model.fit(training_set, batch_size=32, epochs=500)
+    model.fit(training_set, batch_size=batch_size, epochs=epochs, model_name=model_name)
     print(20*'*', 'End of training', 20*'*')
 
     print(20*'*', 'Start of prediction ', 20*'*')

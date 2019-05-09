@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -6,6 +7,7 @@ from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import Dense, CuDNNGRU, Dropout, LSTM, Flatten, CuDNNLSTM
 from keras.optimizers import adam
+from keras.models import load_model
 
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
@@ -69,9 +71,11 @@ class Rnn:
 
         self.model.compile(optimizer=adam(lr=0.005), loss="mae")
 
-    def fit(self, data, batch_size: int = 32, epochs: int = 20):
+    def fit(self, data, batch_size: int = 32, epochs: int = 20, model_name = '/tmp/keras_model.hdf5'):
         x_train, y_train = self._create_x_y(data)
         self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
+        print('Saving Keras model to:', model_name)
+        self.model.save(model_name)
 
     def predict(self, x: pd.core.frame.DataFrame):
         x_test = x.reshape(-1, self.num_features)
@@ -84,8 +88,7 @@ class Rnn:
         return predictions[-1]
 
     def _create_x_y(self, data: pd.core.frame.DataFrame):
-        print(data[0:2, :self.num_features])
-        sys.exit(0)
+        #print(data[0:2, :self.num_features])
         x_train = self.scaler.fit_transform(data[:, :self.num_features])
         x_train, y_train = np.array(x_train[:, :self.num_features]), np.array(data[:, self.num_features])
 
