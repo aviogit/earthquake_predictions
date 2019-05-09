@@ -40,15 +40,18 @@ def main():
 
     #fname = base_dir + '/train.csv.gz'
     fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'
-    print('Opening file:', fname)
+    print('Opening and reading file:', fname)
     gzipped_file = gzip.open(fname, 'r')
     file_content = gzipped_file.read()
 
+    print('Finished reading file, filling the DataFrame...')
     training_set = pd.read_csv(io.BytesIO(file_content), dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
     #save_summary_plot(training_set)
 
+    print('Extracting features...')
     summary = get_stat_summaries(training_set, 150000, run_parallel=True)
     summary.to_csv(base_dir + '/stat_summary.csv')
+    print('Features have been saved to:', base_dir + '/stat_summary.csv')
 
     training_set = summary.values
     feature_count = training_set.shape[-1] - 1
