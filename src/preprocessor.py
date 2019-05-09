@@ -25,7 +25,7 @@ def _get_trend(data: pd.core.frame.DataFrame, abs=False):
     return linear_regression.coef_[0]
 
 
-def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_data: pd.core.frame.DataFrame, windows_list):
+def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_data: pd.core.frame.DataFrame, windows_list, debug=False):
     stat_summary.loc[index, 'mean'] = step_data.mean()
     stat_summary.loc[index, 'std'] = step_data.std()
     stat_summary.loc[index, 'min'] = step_data.min()
@@ -92,8 +92,9 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
         stat_summary.loc[index, 'change_rate_roll_std' + windows_str] = np.abs(roll_std).max()
 
         roll_mean = step_data.rolling(windows).mean().dropna().values
-        print('Job['+str(int(index))+'] - roll_mean:', roll_mean, ' - len:', len(roll_mean))
-        np.savetxt('/tmp/roll-means/roll-mean-idx-'+str(int(index))+'-win-'+str(int(windows))+'.npy', roll_mean, fmt='%.5e')
+        if debug:
+            print('Job['+str(int(index))+'] - roll_mean:', roll_mean, ' - len:', len(roll_mean))
+            np.savetxt('/tmp/roll-means/roll-mean-idx-'+str(int(index))+'-win-'+str(int(windows))+'.npy', roll_mean, fmt='%.5e')
 
         stat_summary.loc[index, 'mean_roll_mean' + windows_str] = roll_mean.mean()
         stat_summary.loc[index, 'std_roll_mean' + windows_str] = roll_mean.std()
@@ -140,7 +141,7 @@ def test_parallel_write_to_df():
     print('test_df', test_df)
     sys.exit(0)
 
-def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 150000, run_parallel = True, include_y: bool = True):
+def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 150000, run_parallel = True, include_y: bool = True, debug=False):
     size = len(data)
     windows_list = [10, 100, 1000]
 
@@ -157,7 +158,8 @@ def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 15
               for j in cols_param:
                    cols.append(j+str(i))
 
-         print(cols)
+         if debug:
+              print(cols)
 
          # pre-alloc columns, so that Pandas doesn't throw keyerror running in parallel
          stat_summary = pd.DataFrame(index=np.arange(0, size/aggregate_length), columns=cols, dtype=np.float64)
@@ -174,7 +176,8 @@ def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 15
          for i in range(0, size, aggregate_length):
               _append_features_wrapper(data, aggregate_length, i, stat_summary, include_y, windows_list)
 
-    print('stat_summary len', len(stat_summary.index))
+    if debug:
+         print('stat_summary len', len(stat_summary.index))
     print('stat_summary', stat_summary)
 
 
@@ -219,7 +222,6 @@ def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 15
 #629145481	5,9.7597955148
 # So 629.145.480 is the number of rows of the training set
 
-    print('returning from this shit')
     return stat_summary
 
 

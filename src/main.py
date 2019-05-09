@@ -21,7 +21,7 @@ def predict(model):
         dtype={"time_to_failure": np.float32})
 
     for i, seg_id in enumerate(submission.index):
-	print('Predicting time to failure for submission no.:', i, ' - id: ', seg_id)
+        print('Predicting time to failure for submission no.:', i, ' - id: ', seg_id)
         seg = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
         summary = get_stat_summaries(seg, 150000, run_parallel=False, include_y=False)
         submission.time_to_failure[i] = model.predict(summary.values)
