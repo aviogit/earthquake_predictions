@@ -5,9 +5,48 @@ from keras.models import Sequential
 from keras.layers import Dense, CuDNNGRU, Dropout, LSTM, Flatten, CuDNNLSTM
 from keras.optimizers import adam
 
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
 
 class Rnn:
     def __init__(self, num_features: int):
+
+	# This block is due to this bug: https://github.com/keras-team/keras/issues/4161#issuecomment-366031228  #
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True	# dynamically grow the memory used on the GPU
+        #config.log_device_placement = True	# to log device placement (on which device the operation ran)
+						# (nothing gets printed in Jupyter, only if you run it standalone)
+        sess = tf.Session(config=config)
+        set_session(sess)			# set this TensorFlow session as the default session for Keras
+        ##########################################################################################################
+        '''
+        2019-05-09 11:45:36.221069: E tensorflow/stream_executor/cuda/cuda_dnn.cc:334] Could not create cudnn handle: CUDNN_STATUS_INTERNAL_ERROR
+        2019-05-09 11:45:36.221240: W tensorflow/core/framework/op_kernel.cc:1401] OP_REQUIRES failed at cudnn_rnn_ops.cc:1217 : Unknown: Fail to find the dnn implementation.
+        Traceback (most recent call last):
+          File "./main.py", line 64, in <module>
+            main()
+          File "./main.py", line 58, in main
+            model.fit(training_set, batch_size=32, epochs=500)
+          File "/mnt/dropbox/dropbox/Dropbox/code/python/ml-tutorials-py/LANL-Earthquake-Prediction/earthquake_predictions/src/models/rnn.py", line 33, in fit
+            self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
+          File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/keras/engine/training.py", line 1039, in fit
+            validation_steps=validation_steps)
+          File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/keras/engine/training_arrays.py", line 199, in fit_loop
+            outs = f(ins_batch)
+          File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/keras/backend/tensorflow_backend.py", line 2715, in __call__
+            return self._call(inputs)
+          File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/keras/backend/tensorflow_backend.py", line 2675, in _call
+            fetched = self._callable_fn(*array_vals)
+          File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/tensorflow/python/client/session.py", line 1439, in __call__
+            run_metadata_ptr)
+          File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/tensorflow/python/framework/errors_impl.py", line 528, in __exit__
+            c_api.TF_GetCode(self.status.status))
+        tensorflow.python.framework.errors_impl.UnknownError: Fail to find the dnn implementation.
+        	 [[{{node cu_dnnlstm_1/CudnnRNN}}]]
+        	 [[{{node loss/mul}}]]
+        '''
+        ##########################################################################################################
+
         self.num_features = num_features
         self.history = None
         self.scaler = MinMaxScaler(feature_range=(0, self.num_features))

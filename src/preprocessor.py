@@ -1,3 +1,6 @@
+import os
+import sys
+
 import numpy as np
 import pandas as pd
 import csv
@@ -7,6 +10,8 @@ from sklearn.linear_model import LinearRegression
 from scipy.signal import hilbert
 from scipy.signal import hann
 from scipy.signal import convolve
+
+from joblib import Parallel, delayed
 
 np.seterr(divide='ignore', invalid='ignore')
 
@@ -20,7 +25,7 @@ def _get_trend(data: pd.core.frame.DataFrame, abs=False):
     return linear_regression.coef_[0]
 
 
-def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_data: pd.core.frame.DataFrame):
+def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_data: pd.core.frame.DataFrame, windows_list):
     stat_summary.loc[index, 'mean'] = step_data.mean()
     stat_summary.loc[index, 'std'] = step_data.std()
     stat_summary.loc[index, 'min'] = step_data.min()
@@ -67,7 +72,7 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
     hann_150 = hann(150)
     stat_summary.loc[index, 'hann_window_mean'] = (convolve(step_data, hann_150, mode='same') / sum(hann_150)).mean()
 
-    for windows in [10, 100, 1000]:
+    for windows in windows_list:
         roll_std = step_data.rolling(windows).std().dropna().values
         windows_str = str(windows)
 
@@ -87,6 +92,8 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
         stat_summary.loc[index, 'change_rate_roll_std' + windows_str] = np.abs(roll_std).max()
 
         roll_mean = step_data.rolling(windows).mean().dropna().values
+        print('Job['+str(int(index))+'] - roll_mean:', roll_mean, ' - len:', len(roll_mean))
+        np.savetxt('/tmp/roll-means/roll-mean-idx-'+str(int(index))+'-win-'+str(int(windows))+'.npy', roll_mean, fmt='%.5e')
 
         stat_summary.loc[index, 'mean_roll_mean' + windows_str] = roll_mean.mean()
         stat_summary.loc[index, 'std_roll_mean' + windows_str] = roll_mean.std()
@@ -104,19 +111,115 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
         stat_summary.loc[index, 'change_rate_roll_mean' + windows_str] = np.abs(roll_mean).max()
 
 
-def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 150000, include_y: bool = True):
+def _append_features_wrapper(data, aggregate_length, i, stat_summary, include_y, windows_list):
+	index = i/aggregate_length
+	print('[' + str(i) + '] Running job with index:', str(int(index)), '/', len(data)/aggregate_length)
+
+	'''
+	if len(data)/aggregate_length < 2.0:
+		print('[' + str(i) + '] Stopping spurious job with index:', str(int(index)), '/', len(data)/aggregate_length)
+		return
+	'''
+
+	step_data = data[i:i + aggregate_length]
+	_append_features(index, stat_summary, step_data.iloc[:, 0], windows_list)
+
+	if include_y:
+		stat_summary.loc[index, 'time_to_failure'] = step_data.iloc[-1, 1]
+
+def test_write_df(i, df):
+	df.loc[i, 'val'] = i**2
+
+def test_parallel_write_to_df():
+    test_df = pd.DataFrame(index=np.arange(0, 1000), dtype=np.float64)
+    Parallel(n_jobs=8, prefer='threads')(delayed(test_write_df)(i, test_df) for i in range(0, 1000))
+    #for i in range(0, 1000):
+    #    test_write_df(i, test_df)
+
+    print('test_df len', len(test_df.index))
+    print('test_df', test_df)
+    sys.exit(0)
+
+def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 150000, run_parallel = True, include_y: bool = True):
     size = len(data)
-    stat_summary = pd.DataFrame(dtype=np.float64)
+    windows_list = [10, 100, 1000]
 
-    index = 0
-    for i in range(0, size, aggregate_length):
-        step_data = data[i:i + aggregate_length]
-        _append_features(index, stat_summary, step_data.iloc[:, 0])
+    if run_parallel:
+         # Ah-ah! You thought it was so easy, uh!
+         #cols = ['mean', 'std', 'min', 'max', 'abs_mean', 'abs_std', 'abs_min', 'abs_max', 'q95', 'q99', 'q05', 'q01', 'std_first5k', 'mean_first5k', 'min_first5k', 'max_first5k', 'std_last5k', 'mean_last5k', 'min_last5k', 'max_last5k', 'std_first1k', 'mean_first1k', 'min_first1k', 'max_first1k', 'std_last1k', 'mean_last1k', 'min_last1k', 'max_last1k', 'trend', 'trend_abs', 'count_big', 'hilbert_mean', 'hann_window_mean', 'mean_roll_std', 'std_roll_std', 'min_roll_std', 'max_roll_std', 'q95_roll_std', 'q99_roll_std', 'q05_roll_std', 'q01_roll_std', 'change_abs_roll_std', 'change_rate_roll_std', 'mean_roll_mean', 'std_roll_mean', 'min_roll_mean', 'max_roll_mean', 'q95_roll_mean', 'q99_roll_mean', 'q05_roll_mean', 'q01_roll_mean', 'change_abs_roll_mean', 'change_rate_roll_mean', 'time_to_failure', 'time_to_failure']
 
-        if include_y:
-            stat_summary.loc[index, 'time_to_failure'] = step_data.iloc[-1, 1]
-        index += 1
+         # These are fine
+         cols = [ 'mean', 'std', 'min', 'max', 'abs_mean', 'abs_std', 'abs_min', 'abs_max', 'q95', 'q99', 'q05', 'q01', 'std_first5k', 'mean_first5k', 'min_first5k', 'max_first5k', 'std_last5k', 'mean_last5k', 'min_last5k', 'max_last5k', 'std_first1k', 'mean_first1k', 'min_first1k', 'max_first1k', 'std_last1k', 'mean_last1k', 'min_last1k', 'max_last1k', 'trend', 'trend_abs', 'count_big', 'hilbert_mean', 'hann_window_mean', 'time_to_failure']
+         # These need to be concat with windows_str ([10, 100, 1000] - see above)
+         cols_param = [ 'mean_roll_std', 'std_roll_std', 'min_roll_std', 'max_roll_std', 'q95_roll_std', 'q99_roll_std', 'q05_roll_std', 'q01_roll_std', 'change_abs_roll_std', 'change_rate_roll_std', 'mean_roll_mean', 'std_roll_mean', 'min_roll_mean', 'max_roll_mean', 'q95_roll_mean', 'q99_roll_mean', 'q05_roll_mean', 'q01_roll_mean', 'change_abs_roll_mean', 'change_rate_roll_mean']
 
+         for i in windows_list:
+              for j in cols_param:
+                   cols.append(j+str(i))
+
+         print(cols)
+
+         # pre-alloc columns, so that Pandas doesn't throw keyerror running in parallel
+         stat_summary = pd.DataFrame(index=np.arange(0, size/aggregate_length), columns=cols, dtype=np.float64)
+
+         # prefer="threads" makes Pandas swear
+         # require='sharedmem' same as above
+         Parallel(n_jobs=8, prefer='threads')(
+		delayed(_append_features_wrapper)(data, aggregate_length, i, stat_summary, include_y, windows_list)
+		for i in range(0, size, aggregate_length))
+    else:
+
+         stat_summary = pd.DataFrame(index=np.arange(0, size/aggregate_length), dtype=np.float64)
+
+         for i in range(0, size, aggregate_length):
+              _append_features_wrapper(data, aggregate_length, i, stat_summary, include_y, windows_list)
+
+    print('stat_summary len', len(stat_summary.index))
+    print('stat_summary', stat_summary)
+
+
+#    print('size', size)
+#    for i in range(0, size, aggregate_length):
+#        print('i', i, 'index', index)
+#        step_data = data[i:i + aggregate_length]
+#        _append_features(index, stat_summary, step_data.iloc[:, 0])
+#
+#        if include_y:
+#            stat_summary.loc[index, 'time_to_failure'] = step_data.iloc[-1, 1]
+#        index += 1
+
+#Opening file: /tmp/LANL-Earthquake-Prediction-train-csv-gzipped/train.csv.gz
+#size 629145480
+#i 0 index 0
+#i 150000 index 1
+#i 300000 index 2
+#i 450000 index 3
+#i 600000 index 4
+#i 750000 index 5
+
+#i 95700000 index 638
+#i 95850000 index 639
+#i 96000000 index 640
+#i 96150000 index 641
+#i 96300000 index 642
+#i 96450000 index 643
+#i 96600000 index 644
+#i 96750000 index 645
+
+#> zcat /tmp/LANL-Earthquake-Prediction-train-csv-gzipped/train.csv.gz | nl | tail
+#629145472	6,9.7597955247
+#629145473	2,9.7597955236
+#629145474	3,9.7597955225
+#629145475	6,9.7597955214
+#629145476	5,9.7597955203
+#629145477	7,9.7597955192
+#629145478	9,9.7597955181
+#629145479	10,9.759795517
+#629145480	6,9.7597955159
+#629145481	5,9.7597955148
+# So 629.145.480 is the number of rows of the training set
+
+    print('returning from this shit')
     return stat_summary
 
 
