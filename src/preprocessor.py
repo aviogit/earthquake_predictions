@@ -128,13 +128,16 @@ def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 15
 
     if run_parallel:
          # These are fine
-         cols = [ 'mean', 'std', 'min', 'max', 'abs_mean', 'abs_std', 'abs_min', 'abs_max', 'q95', 'q99', 'q05', 'q01', 'std_first5k', 'mean_first5k', 'min_first5k', 'max_first5k', 'std_last5k', 'mean_last5k', 'min_last5k', 'max_last5k', 'std_first1k', 'mean_first1k', 'min_first1k', 'max_first1k', 'std_last1k', 'mean_last1k', 'min_last1k', 'max_last1k', 'trend', 'trend_abs', 'count_big', 'hilbert_mean', 'hann_window_mean', 'time_to_failure']
+         cols = [ 'mean', 'std', 'min', 'max', 'abs_mean', 'abs_std', 'abs_min', 'abs_max', 'q95', 'q99', 'q05', 'q01', 'std_first5k', 'mean_first5k', 'min_first5k', 'max_first5k', 'std_last5k', 'mean_last5k', 'min_last5k', 'max_last5k', 'std_first1k', 'mean_first1k', 'min_first1k', 'max_first1k', 'std_last1k', 'mean_last1k', 'min_last1k', 'max_last1k', 'trend', 'trend_abs', 'count_big', 'hilbert_mean', 'hann_window_mean']
          # These need to be concat with windows_str ([10, 100, 1000] - see above)
          cols_param = [ 'mean_roll_std', 'std_roll_std', 'min_roll_std', 'max_roll_std', 'q95_roll_std', 'q99_roll_std', 'q05_roll_std', 'q01_roll_std', 'change_abs_roll_std', 'change_rate_roll_std', 'mean_roll_mean', 'std_roll_mean', 'min_roll_mean', 'max_roll_mean', 'q95_roll_mean', 'q99_roll_mean', 'q05_roll_mean', 'q01_roll_mean', 'change_abs_roll_mean', 'change_rate_roll_mean']
 
          for i in windows_list:
               for j in cols_param:
                    cols.append(j+str(i))
+
+         # I don't know how I've been so dumb to put time_to_failure in the middle of other columns :(
+         cols.append('time_to_failure')
 
          if debug:
               print(cols)

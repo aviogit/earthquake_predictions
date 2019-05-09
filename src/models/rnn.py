@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
@@ -82,6 +84,8 @@ class Rnn:
         return predictions[-1]
 
     def _create_x_y(self, data: pd.core.frame.DataFrame):
+        print(data[0:2, :self.num_features])
+        sys.exit(0)
         x_train = self.scaler.fit_transform(data[:, :self.num_features])
         x_train, y_train = np.array(x_train[:, :self.num_features]), np.array(data[:, self.num_features])
 
