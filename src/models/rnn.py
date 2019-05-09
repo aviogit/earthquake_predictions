@@ -55,10 +55,20 @@ class Rnn:
         self.history = None
         self.scaler = MinMaxScaler(feature_range=(0, self.num_features))
 
+#        self.model = Sequential()
+#        self.model.add(CuDNNLSTM(96, input_shape=(self.num_features, 1)))
+#        self.model.add(Dense(96, activation='relu'))
+#        self.model.add(Dense(1))
+#        self.model.compile(optimizer=adam(lr=0.005), loss="mae")
+
         self.model = Sequential()
-        self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1)))
-        self.model.add(Dense(32, activation='relu'))
-        self.model.add(Dense(1))
+        self.model.add(CuDNNLSTM(93, input_shape=(self.num_features, 1), return_sequences=True))
+        self.model.add(CuDNNLSTM(93, return_sequences=False))
+        self.model.add(Dense(93, activation='relu'))
+        self.model.add(Dense(1, activation='linear'))
+        self.model.compile(optimizer=adam(lr=0.001), loss='mse',  metrics = ['mse'])
+        print(self.model.summary())
+
 
         # self.model.add(Dense(units=64))
         # self.model.add(Dropout(0.1))
@@ -68,8 +78,6 @@ class Rnn:
         # self.model.add(Flatten())
         # self.model.add(Dense(32))
         # self.model.add(Dense(1))
-
-        self.model.compile(optimizer=adam(lr=0.005), loss="mae")
 
     def fit(self, data, batch_size: int = 32, epochs: int = 20, model_name = '/tmp/keras_model.hdf5'):
         x_train, y_train = self._create_x_y(data)

@@ -81,8 +81,8 @@ def main(argv):
     print(training_set)
 
     # Training parameters
-    batch_size=256
-    epochs=1000
+    batch_size=93
+    epochs=2000
     
     model_name = base_dir + '/earthquake-predictions-keras-model-' + datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs) + '.hdf5'
 
