@@ -13,6 +13,7 @@ from visualizer import save_summary_plot
 from preprocessor import get_stat_summaries
 from feature_extractor import extract
 from models.rnn import Rnn
+from keras.models import load_model
 
 base_dir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped'
 
@@ -33,6 +34,9 @@ def predict(model):
 
 
 def main(argv):
+    # 0. Read this: http://theorangeduck.com/page/neural-network-not-working?imm_mid=0f6562&cmp=em-data-na-na-newsltr_20170920
+
+    # 0a. Visualize your data (not only with this stuff, build your own visualizers)
     # training_set = pd.read_csv('data/train.csv', dtype={'acoustic_data': np.int16, 'time_to_failure': np.float64})
     # visualizer.plot_data(training_set)
     # preprocessor.split_sequence('data/train.csv')
@@ -85,20 +89,30 @@ def main(argv):
     # build the common suffix for every output file in this run
     base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)
 
-    if len(argv) > 1:
-	# don't forget to save our features!
+    if len(argv) <= 1:
+	# don't forget to save our features if we didn't loaded them before!
         summary.to_csv(base_dir + '/features-' + base_name + '.csv')
         print('Features have been saved to:', base_dir + '/stat_summary.csv')
 
-    model_name = base_dir + '/earthquake-predictions-keras-model-' + base_name + '.hdf5'
-
     # extract(summary.iloc[:, :-1], summary.iloc[:, -1])
 
-    print(20*'*', 'Start of training', 20*'*')
-    print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
-    model = Rnn(feature_count)
-    model.fit(training_set, batch_size=batch_size, epochs=epochs, model_name=model_name)
-    print(20*'*', 'End of training', 20*'*')
+    if len(argv) > 2:
+        model_name = argv[2]
+
+        print(20*'*', 'Loading pre-trained Keras model', 20*'*')
+        print(20*'*', 'Keras model will be loaded from:', model_name, 20*'*')
+        model = load_model(model_name)
+        print(20*'*', 'End of loading', 20*'*')
+        sys.exit(0)
+    else:
+        model_name = base_dir + '/earthquake-predictions-keras-model-' + base_name + '.hdf5'
+
+        print(20*'*', 'Start of training', 20*'*')
+        print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
+        sys.exit(0)
+        model = Rnn(feature_count)
+        model.fit(training_set, batch_size=batch_size, epochs=epochs, model_name=model_name)
+        print(20*'*', 'End of training', 20*'*')
 
     print(20*'*', 'Start of prediction ', 20*'*')
     predict(model)
