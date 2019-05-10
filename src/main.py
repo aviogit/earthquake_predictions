@@ -24,7 +24,7 @@ def predict(model):
 
     for i, seg_id in enumerate(submission.index):
         seg = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
-        summary = get_stat_summaries(seg, 150000, run_parallel=False, include_y=False)
+        summary = get_stat_summaries(seg, 4096, run_parallel=False, include_y=False)
         submission.time_to_failure[i] = model.predict(summary.values)
         print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
 
@@ -71,9 +71,7 @@ def main(argv):
         #save_summary_plot(training_set)
 
         print('Extracting features...')
-        summary = get_stat_summaries(training_set, 150000, run_parallel=True)
-        summary.to_csv(base_dir + '/stat_summary.csv')
-        print('Features have been saved to:', base_dir + '/stat_summary.csv')
+        summary = get_stat_summaries(training_set, 4096, run_parallel=True)
 
     training_set = summary.values
     feature_count = training_set.shape[-1] - 1
@@ -81,10 +79,18 @@ def main(argv):
     print(training_set)
 
     # Training parameters
-    batch_size=93
-    epochs=2000
-    
-    model_name = base_dir + '/earthquake-predictions-keras-model-' + datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs) + '.hdf5'
+    batch_size = 93
+    epochs = 2000
+
+    # build the common suffix for every output file in this run
+    base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)
+
+    if len(argv) > 1:
+	# don't forget to save our features!
+        summary.to_csv(base_dir + '/features-' + base_name + '.csv')
+        print('Features have been saved to:', base_dir + '/stat_summary.csv')
+
+    model_name = base_dir + '/earthquake-predictions-keras-model-' + base_name + '.hdf5'
 
     # extract(summary.iloc[:, :-1], summary.iloc[:, -1])
 

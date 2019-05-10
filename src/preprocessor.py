@@ -43,25 +43,25 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
     stat_summary.loc[index, 'q05'] = np.quantile(step_data, 0.05)
     stat_summary.loc[index, 'q01'] = np.quantile(step_data, 0.01)
 
-    stat_summary.loc[index, 'std_first5k'] = step_data[:50000].mean()
-    stat_summary.loc[index, 'mean_first5k'] = step_data[:50000].std()
-    stat_summary.loc[index, 'min_first5k'] = step_data[:50000].min()
-    stat_summary.loc[index, 'max_first5k'] = step_data[:50000].max()
+    stat_summary.loc[index, 'std_first5k'] = step_data[:500].mean()
+    stat_summary.loc[index, 'mean_first5k'] = step_data[:500].std()
+    stat_summary.loc[index, 'min_first5k'] = step_data[:500].min()
+    stat_summary.loc[index, 'max_first5k'] = step_data[:500].max()
 
-    stat_summary.loc[index, 'std_last5k'] = step_data[-50000:].mean()
-    stat_summary.loc[index, 'mean_last5k'] = step_data[-50000:].std()
-    stat_summary.loc[index, 'min_last5k'] = step_data[-50000:].min()
-    stat_summary.loc[index, 'max_last5k'] = step_data[-50000:].max()
+    stat_summary.loc[index, 'std_last5k'] = step_data[-500:].mean()
+    stat_summary.loc[index, 'mean_last5k'] = step_data[-500:].std()
+    stat_summary.loc[index, 'min_last5k'] = step_data[-500:].min()
+    stat_summary.loc[index, 'max_last5k'] = step_data[-500:].max()
 
-    stat_summary.loc[index, 'std_first1k'] = step_data[:1000].mean()
-    stat_summary.loc[index, 'mean_first1k'] = step_data[:1000].std()
-    stat_summary.loc[index, 'min_first1k'] = step_data[:1000].min()
-    stat_summary.loc[index, 'max_first1k'] = step_data[:1000].max()
+    stat_summary.loc[index, 'std_first1k'] = step_data[:100].mean()
+    stat_summary.loc[index, 'mean_first1k'] = step_data[:100].std()
+    stat_summary.loc[index, 'min_first1k'] = step_data[:100].min()
+    stat_summary.loc[index, 'max_first1k'] = step_data[:100].max()
 
-    stat_summary.loc[index, 'std_last1k'] = step_data[-1000:].mean()
-    stat_summary.loc[index, 'mean_last1k'] = step_data[-1000:].std()
-    stat_summary.loc[index, 'min_last1k'] = step_data[-1000:].min()
-    stat_summary.loc[index, 'max_last1k'] = step_data[-1000:].max()
+    stat_summary.loc[index, 'std_last1k'] = step_data[-100:].mean()
+    stat_summary.loc[index, 'mean_last1k'] = step_data[-100:].std()
+    stat_summary.loc[index, 'min_last1k'] = step_data[-100:].min()
+    stat_summary.loc[index, 'max_last1k'] = step_data[-100:].max()
 
     stat_summary.loc[index, 'trend'] = _get_trend(step_data)
     stat_summary.loc[index, 'trend_abs'] = _get_trend(step_data, True)
@@ -122,7 +122,7 @@ def _append_features_wrapper(data, aggregate_length, i, stat_summary, include_y,
 	if include_y:
 		stat_summary.loc[index, 'time_to_failure'] = step_data.iloc[-1, 1]
 
-def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 150000, run_parallel = True, include_y: bool = True, debug=False):
+def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 4096, run_parallel = True, include_y: bool = True, debug=False):
     size = len(data)
     windows_list = [10, 100, 1000]
 
