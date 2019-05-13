@@ -4,10 +4,14 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+
 from keras.models import Sequential
-from keras.layers import Dense, CuDNNGRU, Dropout, LSTM, Flatten, CuDNNLSTM
-from keras.optimizers import adam
 from keras.models import load_model
+
+from keras.layers import Dense, CuDNNGRU, Dropout, LSTM, Flatten, CuDNNLSTM
+
+from keras.optimizers import adam
+from keras.optimizers import SGD
 
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
@@ -53,7 +57,8 @@ class Rnn:
 
         self.num_features = num_features
         self.history = None
-        self.scaler = MinMaxScaler(feature_range=(0, self.num_features))
+        #self.scaler = MinMaxScaler(feature_range=(0, self.num_features))		# This is wrooong!
+        self.scaler = MinMaxScaler(feature_range=(0, 1))
 
 #        self.model = Sequential()
 #        self.model.add(CuDNNLSTM(96, input_shape=(self.num_features, 1)))
@@ -61,13 +66,40 @@ class Rnn:
 #        self.model.add(Dense(1))
 #        self.model.compile(optimizer=adam(lr=0.005), loss="mae")
 
+        '''
         self.model = Sequential()
         self.model.add(CuDNNLSTM(93, input_shape=(self.num_features, 1), return_sequences=True))
         self.model.add(CuDNNLSTM(93, return_sequences=False))
         self.model.add(Dense(93, activation='relu'))
         self.model.add(Dense(1, activation='linear'))
         self.model.compile(optimizer=adam(lr=0.001), loss='mse',  metrics = ['mse'])
-        print(self.model.summary())
+        '''
+
+        '''
+        self.model = Sequential()
+        self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1), return_sequences=True))
+        self.model.add(CuDNNLSTM(64, return_sequences=False))
+        self.model.add(Dense(32, activation='relu'))
+        self.model.add(Dense(1, activation='linear'))
+        self.model.compile(optimizer=adam(lr=0.001), loss='mse',  metrics = ['mse'])
+        '''
+
+
+        '''
+	# This model doesn't learn!!!
+        self.model = Sequential()
+        self.model.add(CuDNNLSTM(128, input_shape=(self.num_features, 1), return_sequences=True))
+        self.model.add(Dropout(0.2))
+        self.model.add(CuDNNLSTM(64, return_sequences=False))
+        self.model.add(Dropout(0.2))
+        self.model.add(Dense(32, activation='relu'))
+        self.model.add(Dropout(0.2))
+        self.model.add(Dense(1, activation='linear'))
+        sgd = SGD(lr=0.01, momentum=0.8, decay=0.0, nesterov=False)
+        #self.model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
+        self.model.compile(optimizer=sgd, loss='mse', metrics = ['mse'])
+        '''
+
 
 
         # self.model.add(Dense(units=64))
@@ -78,6 +110,27 @@ class Rnn:
         # self.model.add(Flatten())
         # self.model.add(Dense(32))
         # self.model.add(Dense(1))
+
+
+        '''
+        # Original model! This one MUST work!
+        # Ok this works (obviously :) but with normalized data now I get 1.578 vs. 1.564 of the original submission with un-normalized data
+        self.model = Sequential()
+        self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1)))
+        self.model.add(Dense(32, activation='relu'))
+        self.model.add(Dense(1))
+        self.model.compile(optimizer=adam(lr=0.005), loss="mae")
+        '''
+
+        self.model = Sequential()
+        self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1)))
+        self.model.add(Dense(32, activation='relu'))
+        self.model.add(Dense(1))
+        sgd = SGD(lr=0.01, momentum=0.8, decay=0.0, nesterov=False)
+        self.model.compile(optimizer=sgd, loss='mae', metrics = ['mae'])
+
+
+        print(self.model.summary())
 
     def fit(self, data, batch_size: int = 32, epochs: int = 20, model_name = '/tmp/keras_model.hdf5'):
         x_train, y_train = self._create_x_y(data)

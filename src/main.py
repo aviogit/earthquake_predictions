@@ -24,7 +24,8 @@ style.use('fivethirtyeight')
 
 base_dir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped'
 
-def predict(model):
+# This doesn't work at all
+def predict_multi(model):
 	submission = pd.read_csv(
 		base_dir + '/sample_submission.csv',
 		index_col='seg_id',
@@ -63,6 +64,25 @@ def predict(model):
 
 	submission.head()
 	submission.to_csv('submission.csv')
+
+
+
+def predict(model):
+	submission = pd.read_csv(
+		base_dir + '/sample_submission.csv',
+		index_col='seg_id',
+		dtype={"time_to_failure": np.float32})
+
+	for i, seg_id in enumerate(submission.index):
+		seg = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
+		summary = get_stat_summaries(seg, 150000, run_parallel=False, include_y=False)
+		submission.time_to_failure[i] = model.predict(summary.values.reshape(summary.values.shape[0],summary.values.shape[1],1))
+		print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
+
+	submission.head()
+	submission.to_csv('submission.csv')
+
+
 
 
 def main(argv):
@@ -115,8 +135,8 @@ def main(argv):
 	print(training_set)
 
 	# Training parameters
-	batch_size = 93
-	epochs = 2000
+	batch_size = 32
+	epochs = 1000
 
 	# build the common suffix for every output file in this run
 	base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)
