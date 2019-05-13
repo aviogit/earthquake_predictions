@@ -75,7 +75,7 @@ def predict(model):
 
 	for i, seg_id in enumerate(submission.index):
 		seg = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
-		summary = get_stat_summaries(seg, 150000, run_parallel=False, include_y=False)
+		summary = get_stat_summaries(seg, 150000, do_fft=True, do_stft=True, run_parallel=False, include_y=False)
 		submission.time_to_failure[i] = model.predict(summary.values.reshape(summary.values.shape[0],summary.values.shape[1],1))
 		print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
 
@@ -127,7 +127,7 @@ def main(argv):
 		#save_summary_plot(training_set)
 
 		print('Extracting features...')
-		summary = get_stat_summaries(training_set, 4096, run_parallel=True)
+		summary = get_stat_summaries(training_set, 150000, do_fft=True, do_stft=True, run_parallel=False)
 
 	training_set = summary.values
 	feature_count = training_set.shape[-1] - 1

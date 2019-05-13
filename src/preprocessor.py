@@ -11,6 +11,10 @@ from scipy.signal import hilbert
 from scipy.signal import hann
 from scipy.signal import convolve
 
+from scipy.signal import stft
+from scipy.fftpack import fft
+
+
 from joblib import Parallel, delayed
 
 np.seterr(divide='ignore', invalid='ignore')
@@ -25,11 +29,113 @@ def _get_trend(data: pd.core.frame.DataFrame, abs=False):
     return linear_regression.coef_[0]
 
 
-def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_data: pd.core.frame.DataFrame, windows_list, step_size_large=50000, step_size_small=1000, debug=False):
+def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_data: pd.core.frame.DataFrame, windows_list, do_fft, do_stft, step_size_large=50000, step_size_small=1000, debug=False):
     stat_summary.loc[index, 'mean'] = step_data.mean()
     stat_summary.loc[index, 'std'] = step_data.std()
     stat_summary.loc[index, 'min'] = step_data.min()
     stat_summary.loc[index, 'max'] = step_data.max()
+
+    if do_fft:
+        f        = fft(step_data)
+        f_amp    = np.sqrt(np.real(f)**2 + np.imag(f)**2)
+        fft_data = pd.Series(f_amp)
+
+        '''
+        print(fft_data)
+        print(step_data)
+        print(f_amp.shape)
+        print(fft_data.shape)
+        print(fft_data.mean())
+        print(step_data.shape)
+        print(step_data.mean())
+        '''
+
+        stat_summary.loc[index, 'fft_mean']             = fft_data.mean()
+        stat_summary.loc[index, 'fft_std']              = fft_data.std()
+        stat_summary.loc[index, 'fft_min']              = fft_data.min()
+        stat_summary.loc[index, 'fft_max']              = fft_data.max()
+
+        stat_summary.loc[index, 'fft_q95']              = np.quantile(fft_data, 0.95)
+        stat_summary.loc[index, 'fft_q99']              = np.quantile(fft_data, 0.99)
+        stat_summary.loc[index, 'fft_q05']              = np.quantile(fft_data, 0.05)
+        stat_summary.loc[index, 'fft_q01']              = np.quantile(fft_data, 0.01)
+
+        stat_summary.loc[index, 'fft_std_first5k']      = fft_data[:step_size_large].mean()
+        stat_summary.loc[index, 'fft_mean_first5k']     = fft_data[:step_size_large].std()
+        stat_summary.loc[index, 'fft_min_first5k']      = fft_data[:step_size_large].min()
+        stat_summary.loc[index, 'fft_max_first5k']      = fft_data[:step_size_large].max()
+
+        stat_summary.loc[index, 'fft_std_last5k']       = fft_data[-step_size_large:].mean()
+        stat_summary.loc[index, 'fft_mean_last5k']      = fft_data[-step_size_large:].std()
+        stat_summary.loc[index, 'fft_min_last5k']       = fft_data[-step_size_large:].min()
+        stat_summary.loc[index, 'fft_max_last5k']       = fft_data[-step_size_large:].max()
+
+        stat_summary.loc[index, 'fft_std_first1k']      = fft_data[:step_size_small].mean()
+        stat_summary.loc[index, 'fft_mean_first1k']     = fft_data[:step_size_small].std()
+        stat_summary.loc[index, 'fft_min_first1k']      = fft_data[:step_size_small].min()
+        stat_summary.loc[index, 'fft_max_first1k']      = fft_data[:step_size_small].max()
+
+        stat_summary.loc[index, 'fft_std_last1k']       = fft_data[-step_size_small:].mean()
+        stat_summary.loc[index, 'fft_mean_last1k']      = fft_data[-step_size_small:].std()
+        stat_summary.loc[index, 'fft_min_last1k']       = fft_data[-step_size_small:].min()
+        stat_summary.loc[index, 'fft_max_last1k']       = fft_data[-step_size_small:].max()
+
+        stat_summary.loc[index, 'fft_trend']            = _get_trend(fft_data)
+        stat_summary.loc[index, 'fft_trend_abs']        = _get_trend(fft_data, True)
+
+        stat_summary.loc[index, 'fft_count_big']        = len(fft_data[np.abs(fft_data) > 500])
+        stat_summary.loc[index, 'fft_hilbert_mean']     = np.abs(hilbert(fft_data)).mean()
+
+        hann_150 = hann(150)
+        stat_summary.loc[index, 'fft_hann_window_mean'] = (convolve(fft_data, hann_150, mode='same') / sum(hann_150)).mean()
+
+
+    if do_stft:
+        #f        = fft(step_data)
+        #f_amp    = np.sqrt(np.real(f)**2 + np.imag(f)**2)
+        #fft_data = pd.Series(f_amp)
+        stft_data, stft_data_t, stft_data_Zxx = stft(step_data, nperseg=step_data.shape[0])
+        stft_data = pd.Series(stft_data)
+
+        stat_summary.loc[index, 'stft_mean']             = stft_data.mean()
+        stat_summary.loc[index, 'stft_std']              = stft_data.std()
+        stat_summary.loc[index, 'stft_min']              = stft_data.min()
+        stat_summary.loc[index, 'stft_max']              = stft_data.max()
+
+        stat_summary.loc[index, 'stft_q95']              = np.quantile(stft_data, 0.95)
+        stat_summary.loc[index, 'stft_q99']              = np.quantile(stft_data, 0.99)
+        stat_summary.loc[index, 'stft_q05']              = np.quantile(stft_data, 0.05)
+        stat_summary.loc[index, 'stft_q01']              = np.quantile(stft_data, 0.01)
+
+        stat_summary.loc[index, 'stft_std_first5k']      = stft_data[:step_size_large].mean()
+        stat_summary.loc[index, 'stft_mean_first5k']     = stft_data[:step_size_large].std()
+        stat_summary.loc[index, 'stft_min_first5k']      = stft_data[:step_size_large].min()
+        stat_summary.loc[index, 'stft_max_first5k']      = stft_data[:step_size_large].max()
+
+        stat_summary.loc[index, 'stft_std_last5k']       = stft_data[-step_size_large:].mean()
+        stat_summary.loc[index, 'stft_mean_last5k']      = stft_data[-step_size_large:].std()
+        stat_summary.loc[index, 'stft_min_last5k']       = stft_data[-step_size_large:].min()
+        stat_summary.loc[index, 'stft_max_last5k']       = stft_data[-step_size_large:].max()
+
+        stat_summary.loc[index, 'stft_std_first1k']      = stft_data[:step_size_small].mean()
+        stat_summary.loc[index, 'stft_mean_first1k']     = stft_data[:step_size_small].std()
+        stat_summary.loc[index, 'stft_min_first1k']      = stft_data[:step_size_small].min()
+        stat_summary.loc[index, 'stft_max_first1k']      = stft_data[:step_size_small].max()
+
+        stat_summary.loc[index, 'stft_std_last1k']       = stft_data[-step_size_small:].mean()
+        stat_summary.loc[index, 'stft_mean_last1k']      = stft_data[-step_size_small:].std()
+        stat_summary.loc[index, 'stft_min_last1k']       = stft_data[-step_size_small:].min()
+        stat_summary.loc[index, 'stft_max_last1k']       = stft_data[-step_size_small:].max()
+
+        stat_summary.loc[index, 'stft_trend']            = _get_trend(stft_data)
+        stat_summary.loc[index, 'stft_trend_abs']        = _get_trend(stft_data, True)
+
+        stat_summary.loc[index, 'stft_count_big']        = len(stft_data[np.abs(stft_data) > 500])
+        stat_summary.loc[index, 'stft_hilbert_mean']     = np.abs(hilbert(stft_data)).mean()
+
+        hann_150 = hann(150)
+        stat_summary.loc[index, 'stft_hann_window_mean'] = (convolve(stft_data, hann_150, mode='same') / sum(hann_150)).mean()
+
 
     absolutes = np.abs(step_data)
 
@@ -112,23 +218,36 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
         stat_summary.loc[index, 'change_rate_roll_mean' + windows_str] = np.abs(roll_mean).max()
 
 
-def _append_features_wrapper(data, aggregate_length, i, stat_summary, include_y, windows_list):
+def _append_features_wrapper(data, aggregate_length, do_fft, do_stft, i, stat_summary, include_y, windows_list):
 	index = i/aggregate_length
 	print('[' + str(i) + '] Running job with index:', str(int(index)), '/', len(data)/aggregate_length)
 
 	step_data = data[i:i + aggregate_length]
-	_append_features(index, stat_summary, step_data.iloc[:, 0], windows_list)
+	_append_features(index, stat_summary, step_data.iloc[:, 0], windows_list, do_fft, do_stft)
 
 	if include_y:
 		stat_summary.loc[index, 'time_to_failure'] = step_data.iloc[-1, 1]
 
-def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 150000, run_parallel = True, include_y: bool = True, debug=False):
+def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 150000, do_fft = True, do_stft = True, run_parallel = True, include_y: bool = True, debug=False):
     size = len(data)
     windows_list = [10, 100, 1000]
 
+
+
+
+
+
     if run_parallel:
          # These are fine
-         cols = [ 'mean', 'std', 'min', 'max', 'abs_mean', 'abs_std', 'abs_min', 'abs_max', 'q95', 'q99', 'q05', 'q01', 'std_first5k', 'mean_first5k', 'min_first5k', 'max_first5k', 'std_last5k', 'mean_last5k', 'min_last5k', 'max_last5k', 'std_first1k', 'mean_first1k', 'min_first1k', 'max_first1k', 'std_last1k', 'mean_last1k', 'min_last1k', 'max_last1k', 'trend', 'trend_abs', 'count_big', 'hilbert_mean', 'hann_window_mean']
+         cols = [ 'mean', 'std', 'min', 'max']
+
+         if do_fft:
+              cols.append([ 'fft_mean', 'fft_std', 'fft_min', 'fft_max', 'fft_q95', 'fft_q99', 'fft_q05', 'fft_q01', 'fft_std_first5k', 'fft_mean_first5k', 'fft_min_first5k', 'fft_max_first5k', 'fft_std_last5k', 'fft_mean_last5k', 'fft_min_last5k', 'fft_max_last5k', 'fft_std_first1k', 'fft_mean_first1k', 'fft_min_first1k', 'fft_max_first1k', 'fft_std_last1k', 'fft_mean_last1k', 'fft_min_last1k', 'fft_max_last1k', 'fft_trend', 'fft_trend_abs', 'fft_count_big', 'fft_hilbert_mean', 'fft_hann_window_mean' ])
+
+         if do_stft:
+              cols.append([ 'stft_mean', 'stft_std', 'stft_min', 'stft_max', 'stft_q95', 'stft_q99', 'stft_q05', 'stft_q01', 'stft_std_first5k', 'stft_mean_first5k', 'stft_min_first5k', 'stft_max_first5k', 'stft_std_last5k', 'stft_mean_last5k', 'stft_min_last5k', 'stft_max_last5k', 'stft_std_first1k', 'stft_mean_first1k', 'stft_min_first1k', 'stft_max_first1k', 'stft_std_last1k', 'stft_mean_last1k', 'stft_min_last1k', 'stft_max_last1k', 'stft_trend', 'stft_trend_abs', 'stft_count_big', 'stft_hilbert_mean', 'stft_hann_window_mean' ])
+
+         cols.append([ 'abs_mean', 'abs_std', 'abs_min', 'abs_max', 'q95', 'q99', 'q05', 'q01', 'std_first5k', 'mean_first5k', 'min_first5k', 'max_first5k', 'std_last5k', 'mean_last5k', 'min_last5k', 'max_last5k', 'std_first1k', 'mean_first1k', 'min_first1k', 'max_first1k', 'std_last1k', 'mean_last1k', 'min_last1k', 'max_last1k', 'trend', 'trend_abs', 'count_big', 'hilbert_mean', 'hann_window_mean'])
          # These need to be concat with windows_str ([10, 100, 1000] - see above)
          cols_param = [ 'mean_roll_std', 'std_roll_std', 'min_roll_std', 'max_roll_std', 'q95_roll_std', 'q99_roll_std', 'q05_roll_std', 'q01_roll_std', 'change_abs_roll_std', 'change_rate_roll_std', 'mean_roll_mean', 'std_roll_mean', 'min_roll_mean', 'max_roll_mean', 'q95_roll_mean', 'q99_roll_mean', 'q05_roll_mean', 'q01_roll_mean', 'change_abs_roll_mean', 'change_rate_roll_mean']
 
@@ -146,14 +265,14 @@ def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 15
          stat_summary = pd.DataFrame(index=np.arange(0, size/aggregate_length), columns=cols, dtype=np.float64)
 
          Parallel(n_jobs=8, prefer='threads')(
-		delayed(_append_features_wrapper)(data, aggregate_length, i, stat_summary, include_y, windows_list)
+		delayed(_append_features_wrapper)(data, aggregate_length, do_fft, do_stft, i, stat_summary, include_y, windows_list)
 		for i in range(0, size, aggregate_length))
     else:
 
          stat_summary = pd.DataFrame(index=np.arange(0, size/aggregate_length), dtype=np.float64)
 
          for i in range(0, size, aggregate_length):
-              _append_features_wrapper(data, aggregate_length, i, stat_summary, include_y, windows_list)
+              _append_features_wrapper(data, aggregate_length, do_fft, do_stft, i, stat_summary, include_y, windows_list)
 
     if debug:
          print('stat_summary len', len(stat_summary.index))
