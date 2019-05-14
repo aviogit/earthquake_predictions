@@ -12,26 +12,31 @@ import io
 
 
 def main(argv):
-    if len(argv) <= 1:
-        print('Error. Please provide submission.csv file')
-        sys.exit(0)
+	if len(argv) <= 1:
+		print('Error. Please provide at least one submission.csv file')
+		sys.exit(0)
 
-    submission = pd.read_csv(
-        argv[1],
-        index_col='seg_id',
-        dtype={"time_to_failure": np.float32})
+	#fig, axes = plt.subplots(nrows=1, ncols=3)
+	for tok in argv:
+		if tok == argv[0]:
+			continue
+		print("Reading argv:", tok)
+		submission = pd.read_csv(
+			tok,
+			index_col='seg_id',
+			dtype={"time_to_failure": np.float32})
+	
+	
+		# gca stands for 'get current axis'
+		ax = plt.gca()
+		
+		submission.reset_index().plot(kind='line', y='time_to_failure', use_index=True, ax=ax, sharex=True)
+		#submission.plot(kind='line',x='name',y='num_pets', color='red', ax=ax)
+	
+	plt.show()
+	sys.exit(0)
 
-
-    # gca stands for 'get current axis'
-    ax = plt.gca()
-    
-    submission.reset_index().plot(kind='line', y='time_to_failure', use_index=True, ax=ax)
-    #submission.plot(kind='line',x='name',y='num_pets', color='red', ax=ax)
-    
-    plt.show()
-    sys.exit(0)
-
-
+'''
     for i, seg_id in enumerate(submission.index):
         seg = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
         summary = get_stat_summaries(seg, 4096, run_parallel=False, include_y=False)
@@ -40,6 +45,7 @@ def main(argv):
 
     submission.head()
     submission.to_csv('submission.csv')
+'''
 
 '''
 def main(argv):

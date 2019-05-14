@@ -58,6 +58,7 @@ def main(argv):
 
 	sys.exit(0)
 
+'''
 	# gca stands for 'get current axis'
 	ax = plt.gca()
 	
@@ -76,6 +77,7 @@ def main(argv):
 
 	submission.head()
 	submission.to_csv('submission.csv')
+'''
 
 '''
 def main(argv):
