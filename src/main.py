@@ -136,7 +136,7 @@ def main(argv):
 
 	# Training parameters
 	batch_size = 32
-	epochs = 1000
+	epochs = 2000
 
 	# build the common suffix for every output file in this run
 	base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)

@@ -122,12 +122,23 @@ class Rnn:
         self.model.compile(optimizer=adam(lr=0.005), loss="mae")
         '''
 
+        '''
+	Slightly worse than the original model 1.602 (with 151 features) vs. 1.564 with just 93 features)
         self.model = Sequential()
         self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1)))
         self.model.add(Dense(32, activation='relu'))
         self.model.add(Dense(1))
         sgd = SGD(lr=0.01, momentum=0.8, decay=0.0, nesterov=False)
         self.model.compile(optimizer=sgd, loss='mae', metrics = ['mae'])
+        '''
+
+        # Modified original model! This one works better!
+        # Ok this worked slightly better! 151 features, normalized data, batch=32, 2000 epochs and now I get 1.554!
+        self.model = Sequential()
+        self.model.add(CuDNNLSTM(128, input_shape=(self.num_features, 1)))
+        self.model.add(Dense(64, activation='relu'))
+        self.model.add(Dense(1))
+        self.model.compile(optimizer=adam(lr=0.0001), loss="mae")
 
 
         print(self.model.summary())

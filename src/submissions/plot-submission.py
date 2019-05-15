@@ -10,18 +10,30 @@ import sys
 import gzip
 import io
 
+def abs_error_df(submissions, sub_idx_good, new_sub_idx):
+	abs_sub = (submissions[sub_idx_good] - submissions[new_sub_idx]).abs()
+	ax = plt.gca()
+	abs_sub.reset_index().plot(kind='line', y='time_to_failure', use_index=True, ax=ax, sharex=True)
 
 def main(argv):
 	if len(argv) <= 1:
 		print('Error. Please provide at least one submission.csv file')
 		sys.exit(0)
 
+	ax = plt.gca()
+	ax.set_xlabel("Test Sample")
+	ax.set_ylabel("Seconds")
+
+	idx = 0
+	submissions = [None] * (len(argv)-1)
+	legends = []
+
 	#fig, axes = plt.subplots(nrows=1, ncols=3)
 	for tok in argv:
 		if tok == argv[0]:
 			continue
 		print("Reading argv:", tok)
-		submission = pd.read_csv(
+		submissions[idx] = pd.read_csv(
 			tok,
 			index_col='seg_id',
 			dtype={"time_to_failure": np.float32})
@@ -29,10 +41,20 @@ def main(argv):
 	
 		# gca stands for 'get current axis'
 		ax = plt.gca()
+
+		legends.append(str(idx) + '-' + tok + '-TTF')
 		
-		submission.reset_index().plot(kind='line', y='time_to_failure', use_index=True, ax=ax, sharex=True)
-		#submission.plot(kind='line',x='name',y='num_pets', color='red', ax=ax)
-	
+		submissions[idx].reset_index().plot(kind='line', y='time_to_failure', use_index=True, ax=ax, sharex=True)
+		#submissions.plot(kind='line',x='name',y='num_pets', color='red', ax=ax)
+		idx += 1
+
+	abs_error_df(submissions, 0, 1)		# 1.564 vs. 1.578
+	abs_error_df(submissions, 0, -1)
+	abs_error_df(submissions, 1, -1)
+
+	legends.extend(['abs-err-0-1', 'abs-err-0-'+str(len(argv)-1), 'abs-err-1-'+str(len(argv)-1)])
+	ax.legend(legends);
+	plt.grid(True)
 	plt.show()
 	sys.exit(0)
 
