@@ -66,8 +66,12 @@ def predict_multi(model):
 	submission.to_csv('submission.csv')
 
 
-
-def predict(model):
+# Ok, following this interesting discussion (https://www.kaggle.com/gpreda/lanl-earthquake-new-approach-eda) there's no point in:
+# a) having a mean value of the acoustic signal (the feature should be dropped)
+# b) having different mean values across both the training set and the test set (everything should be StandardScaled or MaxMinScaled together)
+# c) - bonus - not being able to use the test set as validation set (at this point we have a vague idea of the values of TTF in test set, maybe we can use them to validate our model during training)
+# So, we have to rework how we generate features: features must be now extracted at once on the training set and the test set, then concat'd together and the whole dataset must be scaled.
+def predict_single(model):
 	submission = pd.read_csv(
 		base_dir + '/sample_submission.csv',
 		index_col='seg_id',
@@ -166,7 +170,7 @@ def main(argv):
 		print(20*'*', 'End of training', 20*'*')
 
 	print(20*'*', 'Start of prediction ', 20*'*')
-	predict(model)
+	predict_single(model)
 	print(20*'*', 'End of prediction ', 20*'*')
 
 
