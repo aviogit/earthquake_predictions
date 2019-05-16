@@ -117,7 +117,7 @@ def main(argv):
 		print(summary)
 	else:
 		fname = base_dir + '/train.csv.gz'
-		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'
+		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# remember to uncomment this to do a quicktest before every major change
 		print('Opening and reading file:', fname)
 		gzipped_file = gzip.open(fname, 'r')
 		file_content = gzipped_file.read()
@@ -125,9 +125,10 @@ def main(argv):
 		print('Finished reading file, filling the DataFrame...')
 		training_set = pd.read_csv(io.BytesIO(file_content), dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
 		#save_summary_plot(training_set)
+		del file_content			# try to free some memory
 
 		print('Extracting features...')
-		summary = get_stat_summaries(training_set, 150000, do_fft=True, do_stft=True, run_parallel=False)
+		summary = get_stat_summaries(training_set, 150000, do_fft=True, do_stft=True, run_parallel=True)
 
 	training_set = summary.values
 	feature_count = training_set.shape[-1] - 1
@@ -135,8 +136,8 @@ def main(argv):
 	print(training_set)
 
 	# Training parameters
-	batch_size = 32
-	epochs = 2000
+	batch_size = 8
+	epochs = 10000
 
 	# build the common suffix for every output file in this run
 	base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)
