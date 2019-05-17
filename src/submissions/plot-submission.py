@@ -48,11 +48,14 @@ def main(argv):
 		#submissions.plot(kind='line',x='name',y='num_pets', color='red', ax=ax)
 		idx += 1
 
-	abs_error_df(submissions, 0, 1)		# 1.564 vs. 1.578
-	abs_error_df(submissions, 0, -1)
-	abs_error_df(submissions, 1, -1)
+	if (len(argv)) > 2:
+		abs_error_df(submissions, 0, 1)		# 1.564 vs. 1.578
+		legends.append('abs-err-0-1')
+	if (len(argv)) > 3:
+		abs_error_df(submissions, 0, -1)
+		abs_error_df(submissions, 1, -1)
+		legends.extend(['abs-err-0-'+str(len(argv)-2), 'abs-err-1-'+str(len(argv)-2)])
 
-	legends.extend(['abs-err-0-1', 'abs-err-0-'+str(len(argv)-1), 'abs-err-1-'+str(len(argv)-1)])
 	ax.legend(legends);
 	plt.grid(True)
 	plt.show()

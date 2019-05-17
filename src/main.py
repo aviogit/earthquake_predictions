@@ -79,13 +79,60 @@ def predict_single(model):
 
 	for i, seg_id in enumerate(submission.index):
 		seg = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
-		summary = get_stat_summaries(seg, 150000, do_fft=True, do_stft=True, run_parallel=False, include_y=False)
-		submission.time_to_failure[i] = model.predict(summary.values.reshape(summary.values.shape[0],summary.values.shape[1],1))
+		features = get_stat_summaries(seg, 150000, do_fft=True, do_stft=True, run_parallel=False, include_y=False)
+		submission.time_to_failure[i] = model.predict(features.values.reshape(features.values.shape[0],features.values.shape[1],1))
 		print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
 
 	submission.head()
 	submission.to_csv('submission.csv')
 
+
+def create_labeled_test_set():
+	submission_avg = pd.read_csv(
+		'./submissions/submissions-avg.csv',				# Ok, let's try to read a "crafted" average submission
+		index_col='seg_id',						# (among our best two) and let's try to use TTF values
+		dtype={"time_to_failure": np.float32})				# as validation set for the training...
+	submission_avg.head()
+
+	segment_size = 150000
+	nsegs = 2624
+	segs = []
+	for i, seg_id in enumerate(submission_avg.index):
+		curr_ttf = submission_avg.loc[seg_id, 'time_to_failure']
+		print(f'Reading test segment {i}/{nsegs} with id {seg_id}. Using time_to_failure: {curr_ttf}')
+		avg_ttf_df  = pd.DataFrame(curr_ttf, index=np.arange(0, segment_size), columns=['time_to_failure'], dtype=np.float32)
+		test_df     = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
+		labeled_seg = pd.concat([test_df, avg_ttf_df], axis=1)		# we concat two columns, the TTF one with always the same value
+		segs.append(labeled_seg)					# because the features extractor uses just the last TTF value
+	print(f'Performing df.concat of {nsegs} segments...')			# when include_y=True is passed as parameter
+	df = pd.concat(segs, ignore_index=True)
+	print(df[0:2])
+	print(df[-2:])
+
+	#features = get_stat_summaries(df, segment_size, do_fft=True, do_stft=True, run_parallel=False, include_y=True)
+	#submission_avg.to_csv('submission_avg.csv')
+	return df
+
+def extract_features(df):
+	segment_size = 150000
+	features = get_stat_summaries(df, segment_size, do_fft=True, do_stft=True, run_parallel=True, include_y=True)
+	return features
+
+def predict_single_on_scaled_features(model, x_test):
+	submission = pd.read_csv(
+		base_dir + '/sample_submission.csv',
+		index_col='seg_id',
+		dtype={"time_to_failure": np.float32})
+
+	for i, seg_id in enumerate(submission.index):
+		#seg = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
+		#features = get_stat_summaries(seg, 150000, do_fft=True, do_stft=True, run_parallel=False, include_y=False)
+		#submission.time_to_failure[i] = model.predict(features.values.reshape(features.values.shape[0],features.values.shape[1],1))
+		submission.time_to_failure[i] = model.predict(x_test[i].reshape(1,x_test.shape[1],1))
+		print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
+
+	submission.head()
+	submission.to_csv('submission.csv')
 
 
 
@@ -114,12 +161,22 @@ def main(argv):
 	# 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████| 52.8k/52.8k [00:02<00:00, 19.1kB/s]
 	# Successfully submitted to LANL Earthquake Prediction
 
-	if len(argv) > 1:
-		print('Loading features from file:', argv[1])
-		summary = pd.read_csv(argv[1])
-		summary.drop(columns=['Unnamed: 0'], inplace=True)
-		print(summary)
+	segment_size = 150000
+	base_time = datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
+
+	if len(argv) > 2:
+		print(f'Loading training set features from file: {argv[1]}')
+		features          = pd.read_csv(argv[1])
+		features.drop(columns=['Unnamed: 0'], inplace=True)
+		print(f'Loading test     set features from file: {argv[2]}')
+		test_set_features = pd.read_csv(argv[2])
+		test_set_features.drop(columns=['Unnamed: 0'], inplace=True)
+		print(features)
+		print(test_set_features)
+		feature_count          = len(features.columns)-1
+		test_set_feature_count = len(test_set_features.columns)-1
 	else:
+		# Process training set
 		fname = base_dir + '/train.csv.gz'
 		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# remember to uncomment this to do a quicktest before every major change
 		print('Opening and reading file:', fname)
@@ -131,46 +188,106 @@ def main(argv):
 		#save_summary_plot(training_set)
 		del file_content			# try to free some memory
 
-		print('Extracting features...')
-		summary = get_stat_summaries(training_set, 150000, do_fft=True, do_stft=True, run_parallel=True)
+		print('Extracting features from the training set...')
+		features = get_stat_summaries(training_set, segment_size , do_fft=True, do_stft=True, run_parallel=True)
 
-	training_set = summary.values
-	feature_count = training_set.shape[-1] - 1
-	print(feature_count)
-	print(training_set)
+		feature_count = len(features.columns)-1
+
+		# build the common suffix for every output file in this run
+		base_name = base_time + '-feature_count-' + str(feature_count)
+
+		'''
+		features.to_csv(base_dir + '/features-' + base_name + '.csv')
+		print('Features have been saved to:', base_dir + '/stat_summary.csv')
+		'''
+
+		# don't forget to save our features if we didn't loaded them before!
+		features_fname = base_dir + '/training-set-features-' + base_name + '.csv'
+		features.to_csv(features_fname)
+		print(f'Training set features have been saved to: {features_fname}')
+		# --------------------
+
+
+
+
+		# Process test set
+		labeled_test_set       = create_labeled_test_set()
+		test_set_features      = extract_features(labeled_test_set)
+	
+		test_set_feature_count = len(test_set_features.columns)-1
+		print(test_set_features)
+		print(test_set_feature_count)
+	
+		#base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-test_set_feature_count-' + str(test_set_feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)
+		base_name = base_time + '-feature_count-' + str(test_set_feature_count)
+	
+		# don't forget to save our features if we didn't loaded them before!
+		test_set_features_fname = base_dir + '/test-set-features-' + base_name + '.csv'
+		test_set_features.to_csv(test_set_features_fname)
+		print(f'Test set features have been saved to: {test_set_features_fname}')
+		# --------------------
+	
+
+
+	if feature_count != test_set_feature_count:
+		print()
+		print(f'Fatal error! Trying to use a training set of {feature_count} features and a test set of {test_set_feature_count} features!')
+		print()
+		sys.exit(0)
+
+	# Let's redefine this for the last time because now we have feature_count == test_set_feature_count and maybe we even loaded the features
+	base_name = base_time + '-feature_count-' + str(feature_count)
+
+	print(f'Using a training set of {feature_count} features and {len(features)} rows.')
+	print(f'Using a test     set of {test_set_feature_count} features and {len(test_set_features)} rows.')
 
 	# Training parameters
-	batch_size = 8
-	epochs = 10000
+	batch_size = 32
+	epochs = 1000
 
+	'''
 	# build the common suffix for every output file in this run
 	base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)
+		# build the common suffix for every output file in this run
+	base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(test_set_feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)
+	'''
 
-	if len(argv) <= 1:
-	# don't forget to save our features if we didn't loaded them before!
-		summary.to_csv(base_dir + '/features-' + base_name + '.csv')
-		print('Features have been saved to:', base_dir + '/stat_summary.csv')
+	#training_set = features.values
+	#print(feature_count)
+	#print(training_set)
+
 
 	# extract(summary.iloc[:, :-1], summary.iloc[:, -1])
 
-	if len(argv) > 2:
-		model_name = argv[2]
+	# These are still DataFrames
+	training_set = features
+	test_set     = test_set_features
+
+	if len(argv) > 3:
+		model_name = argv[3]
 
 		print(20*'*', 'Loading pre-trained Keras model', 20*'*')
 		print(20*'*', 'Keras model will be loaded from:', model_name, 20*'*')
 		model = load_model(model_name)
 		print(20*'*', 'End of loading', 20*'*')
+
+		# TODO: here we don't have any x_train, y_train, x_valid, y_valid
 	else:
-		model_name = base_dir + '/earthquake-predictions-keras-model-' + base_name + '.hdf5'
+		model_name           = base_dir + '/earthquake-predictions-keras-model-'     + base_name + '.hdf5'
+		scaled_features_name = base_dir + '/earthquake-predictions-scaled-features-' + base_name + '.csv'
 
 		print(20*'*', 'Start of training', 20*'*')
 		print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
 		model = Rnn(feature_count)
-		model.fit(training_set, batch_size=batch_size, epochs=epochs, model_name=model_name)
+		x_train, y_train, x_valid, y_valid = model.fit(training_set, test_set,				# we also try to validate our model during training
+								batch_size=batch_size, epochs=epochs,		# only two params (except for the inner model structure)
+								model_name=model_name, scaled_features_name=scaled_features_name)	# these are just for saving
 		print(20*'*', 'End of training', 20*'*')
+		#model = load_model('/tmp/LANL-Earthquake-Prediction-train-csv-gzipped/earthquake-predictions-keras-model-2019-05-15_17.10.05-feature_count-225-batch_size-8-epochs-1000.hdf5')
 
 	print(20*'*', 'Start of prediction ', 20*'*')
-	predict_single(model)
+	#predict_single(model)
+	predict_single_on_scaled_features(model, x_valid)
 	print(20*'*', 'End of prediction ', 20*'*')
 
 

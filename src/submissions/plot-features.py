@@ -7,13 +7,102 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 import sys
-import gzip
-import io
 
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import Normalizer
+'''
+dir='/tmp/LANL-Earthquake-Prediction-train-csv-gzipped'
+
+cat earthquake-predictions-scaled-features-2019-05-17_14.28.45-feature_count-225.csv  | awk -F\, '{print $1" "$2}' | tail -6819 | gnuplot -p -e "plot '<cat' with lines"
+cat features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv  | awk -F\, '{print $1" "$2}' | tail -4195 | gnuplot -p -e "plot '<cat' with lines"
+cat test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv  | awk -F\, '{print $1" "$2}' | tail -2624 | gnuplot -p -e "plot '<cat' with lines"
+'''
+
+
+
+'''
+	ax = plt.gca()
+	ax.set_xlabel("Test Sample")
+	ax.set_ylabel("Seconds")
+
+	idx = 0
+	submissions = [None] * (len(argv)-1)
+	legends = []
+
+	#fig, axes = plt.subplots(nrows=1, ncols=3)
+	for tok in argv:
+		if tok == argv[0]:
+			continue
+		print("Reading argv:", tok)
+		submissions[idx] = pd.read_csv(
+			tok,
+			index_col='seg_id',
+			dtype={"time_to_failure": np.float32})
+	
+	
+		# gca stands for 'get current axis'
+		ax = plt.gca()
+
+		legends.append(str(idx) + '-' + tok + '-TTF')
+		
+		submissions[idx].reset_index().plot(kind='line', y='time_to_failure', use_index=True, ax=ax, sharex=True)
+		#submissions.plot(kind='line',x='name',y='num_pets', color='red', ax=ax)
+		idx += 1
+
+	if (len(argv)) > 2:
+		abs_error_df(submissions, 0, 1)		# 1.564 vs. 1.578
+		legends.append('abs-err-0-1')
+	if (len(argv)) > 3:
+		abs_error_df(submissions, 0, -1)
+		abs_error_df(submissions, 1, -1)
+		legends.extend(['abs-err-0-'+str(len(argv)-2), 'abs-err-1-'+str(len(argv)-2)])
+
+	ax.legend(legends);
+	plt.grid(True)
+	plt.show()
+'''
 
 def main(argv):
+
+	basedir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped/'
+
+	scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_14.28.45-feature_count-225.csv'
+	unscaled_features_train_fname    = basedir + 'features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv'
+	unscaled_features_test_fname     = basedir + 'test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv'
+
+	scaled_features_train_test       = pd.read_csv(scaled_features_train_test_fname)
+	unscaled_features_train          = pd.read_csv(unscaled_features_train_fname)
+	unscaled_features_test           = pd.read_csv(unscaled_features_test_fname)
+
+	scaled_features_train_test.drop(columns=['Unnamed: 0'], inplace=True)
+	unscaled_features_train.drop(columns=['Unnamed: 0'], inplace=True)
+	unscaled_features_test.drop(columns=['Unnamed: 0'], inplace=True)
+
+	scaled_nfeat       = len(scaled_features_train_test.columns)
+	unscaled_xtr_nfeat = len(unscaled_features_train.columns) - 1
+	unscaled_xte_nfeat = len(unscaled_features_test.columns)  - 1
+	
+	unscaled_x = pd.concat([unscaled_features_train, unscaled_features_test], ignore_index=True)
+
+	if scaled_nfeat != unscaled_xtr_nfeat or unscaled_xtr_nfeat != unscaled_xte_nfeat:
+		print(f"Features mismatch: {scaled_nfeat} vs. {unscaled_xtr_nfeat} vs. {unscaled_xte_nfeat}")
+		sys.exit(1)
+
+	#df = scaled_features_train_test
+	df = unscaled_x
+	for col in range(scaled_nfeat):
+		ax = plt.gca()
+		ax.set_xlabel("Test Sample")
+		ax.set_ylabel("Value")
+		ax.legend(df.columns[col])
+		df.iloc[ : , col].plot(kind='line', ax=ax, sharex=True, legend=True)
+		#print(df.columns[col]);
+		mng = plt.get_current_fig_manager()
+		#mng.window.state('withdrawn')
+		mng.resize(*mng.window.maxsize())
+		plt.grid(True)
+		plt.show()
+		
+	sys.exit(0)
+
 	if len(argv) <= 1:
 		print('Error. Please provide features.csv file')
 		sys.exit(0)
@@ -58,74 +147,6 @@ def main(argv):
 
 	sys.exit(0)
 
-'''
-	# gca stands for 'get current axis'
-	ax = plt.gca()
-	
-	submission.reset_index().plot(kind='line', y='time_to_failure', use_index=True, ax=ax)
-	#submission.plot(kind='line',x='name',y='num_pets', color='red', ax=ax)
-	
-	plt.show()
-	sys.exit(0)
-
-
-	for i, seg_id in enumerate(submission.index):
-		seg = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
-		summary = get_stat_summaries(seg, 4096, run_parallel=False, include_y=False)
-		submission.time_to_failure[i] = model.predict(summary.values)
-		print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
-
-	submission.head()
-	submission.to_csv('submission.csv')
-'''
-
-'''
-def main(argv):
-
-	if len(argv) > 1:
-		print('Loading features from file:', argv[1])
-		summary = pd.read_csv(argv[1])
-		summary.drop(columns=['Unnamed: 0'], inplace=True)
-		print(summary)
-	else:
-		fname = base_dir + '/train.csv.gz'
-		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'
-		print('Opening and reading file:', fname)
-		gzipped_file = gzip.open(fname, 'r')
-		file_content = gzipped_file.read()
-
-		print('Finished reading file, filling the DataFrame...')
-		training_set = pd.read_csv(io.BytesIO(file_content), dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
-		#save_summary_plot(training_set)
-
-		print('Extracting features...')
-		summary = get_stat_summaries(training_set, 4096, run_parallel=True)
-		summary.to_csv(base_dir + '/stat_summary.csv')
-		print('Features have been saved to:', base_dir + '/stat_summary.csv')
-
-	training_set = summary.values
-	feature_count = training_set.shape[-1] - 1
-	print(feature_count)
-	print(training_set)
-
-	# Training parameters
-	batch_size=93
-	epochs=2000
-	
-	model_name = base_dir + '/earthquake-predictions-keras-model-' + datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs) + '.hdf5'
-
-	# extract(summary.iloc[:, :-1], summary.iloc[:, -1])
-
-	print(20*'*', 'Start of training', 20*'*')
-	print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
-	model = Rnn(feature_count)
-	model.fit(training_set, batch_size=batch_size, epochs=epochs, model_name=model_name)
-	print(20*'*', 'End of training', 20*'*')
-
-	print(20*'*', 'Start of prediction ', 20*'*')
-	predict(model)
-	print(20*'*', 'End of prediction ', 20*'*')
-'''
 
 if __name__ == '__main__':
 	main(sys.argv)
