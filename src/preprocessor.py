@@ -329,6 +329,13 @@ def _append_features_wrapper(data, aggregate_length, do_fft, do_stft, i, stat_su
 	print('[' + str(i) + '] Running job with index:', str(int(index)), '/', len(data)/aggregate_length, ' - used RAM:', ram)
 
 	step_data = data[i:i + aggregate_length]
+
+	step_data_mean    = step_data.mean()
+	step_data_mean[1] = 0
+
+	print(f'Subtracting mean value {step_data_mean[0]} from the acoustic samples in the current chunk...')
+	step_data = step_data - step_data_mean
+
 	_append_features(index, stat_summary, step_data.iloc[:, 0], windows_list, do_fft, do_stft)
 
 	if include_y:

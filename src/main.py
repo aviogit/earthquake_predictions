@@ -113,11 +113,6 @@ def create_labeled_test_set():
 	#submission_avg.to_csv('submission_avg.csv')
 	return df
 
-def extract_features(df):
-	segment_size = 150000
-	features = get_stat_summaries(df, segment_size, do_fft=True, do_stft=True, run_parallel=True, include_y=True)
-	return features
-
 def predict_single_on_scaled_features(model, x_test):
 	submission = pd.read_csv(
 		base_dir + '/sample_submission.csv',
@@ -179,6 +174,8 @@ def main(argv):
 		# Process training set
 		fname = base_dir + '/train.csv.gz'
 		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# remember to uncomment this to do a quicktest before every major change
+
+		'''
 		print('Opening and reading file:', fname)
 		gzipped_file = gzip.open(fname, 'r')
 		file_content = gzipped_file.read()
@@ -187,6 +184,11 @@ def main(argv):
 		training_set = pd.read_csv(io.BytesIO(file_content), dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
 		#save_summary_plot(training_set)
 		del file_content			# try to free some memory
+		'''
+
+		print('Opening and reading file:', fname)
+		training_set = pd.read_csv(fname, compression='gzip', dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
+		print(training_set.head())
 
 		print('Extracting features from the training set...')
 		features = get_stat_summaries(training_set, segment_size , do_fft=True, do_stft=True, run_parallel=True)
@@ -212,7 +214,7 @@ def main(argv):
 
 		# Process test set
 		labeled_test_set       = create_labeled_test_set()
-		test_set_features      = extract_features(labeled_test_set)
+		test_set_features      = get_stat_summaries(labeled_test_set, segment_size, do_fft=True, do_stft=True, run_parallel=True, include_y=True)
 	
 		test_set_feature_count = len(test_set_features.columns)-1
 		print(test_set_features)

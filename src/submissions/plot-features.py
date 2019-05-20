@@ -64,7 +64,8 @@ def main(argv):
 
 	basedir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped/'
 
-	scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_14.28.45-feature_count-225.csv'
+	#scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_14.28.45-feature_count-225.csv'
+	scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_16.59.52-feature_count-225.csv'
 	unscaled_features_train_fname    = basedir + 'features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv'
 	unscaled_features_test_fname     = basedir + 'test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv'
 
@@ -86,8 +87,8 @@ def main(argv):
 		print(f"Features mismatch: {scaled_nfeat} vs. {unscaled_xtr_nfeat} vs. {unscaled_xte_nfeat}")
 		sys.exit(1)
 
-	#df = scaled_features_train_test
-	df = unscaled_x
+	df = scaled_features_train_test
+	#df = unscaled_x
 	for col in range(scaled_nfeat):
 		ax = plt.gca()
 		ax.set_xlabel("Test Sample")
