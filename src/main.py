@@ -132,8 +132,11 @@ def predict_single_on_scaled_features(model, x_test):
 
 # Oh-oh-oh! Very bad news!!! calling drop_useless_features() as it is now (e.g. with all the means, etc.) totally
 # wipes information from the dataset! Predictions becomes all in the range of more or less 5! This stuff is incredible!
+
+# Just leaving the mean produces excellent results wrt removing it!
 def drop_useless_features(df):
-	df.drop(columns=[ 'mean', 'fft_min', 'fft_max', 'fft_min_first5k', 'fft_max_first5k', 'fft_min_last5k', 'fft_mean_first5k', 'fft_max_first1k', 'fft_trend', 'fft_trend_abs', 'abs_min', 'std_first5k', 'std_last5k', 'std_first1k', 'std_last1k', 'trend', 'trend_abs', 'hann_window_mean', 'meanA', 'varAnorm', 'skewA', 'kurtAnorm', 'meanB', 'varBnorm', 'skewB', 'kurtBnorm', 'min_roll_std10', 'change_abs_roll_std10', 'mean_roll_mean10', 'change_abs_roll_mean10', 'min_roll_std100', 'change_abs_roll_std100', 'mean_roll_mean100', 'change_abs_roll_mean100', 'min_roll_std1000', 'change_abs_roll_std1000', 'mean_roll_mean1000', 'change_abs_roll_mean1000' ], inplace=True)
+	#df.drop(columns=[ 'mean', 'fft_min', 'fft_max', 'fft_min_first5k', 'fft_max_first5k', 'fft_min_last5k', 'fft_mean_first5k', 'fft_max_first1k', 'fft_trend', 'fft_trend_abs', 'abs_min', 'std_first5k', 'std_last5k', 'std_first1k', 'std_last1k', 'trend', 'trend_abs', 'hann_window_mean', 'meanA', 'varAnorm', 'skewA', 'kurtAnorm', 'meanB', 'varBnorm', 'skewB', 'kurtBnorm', 'min_roll_std10', 'change_abs_roll_std10', 'mean_roll_mean10', 'change_abs_roll_mean10', 'min_roll_std100', 'change_abs_roll_std100', 'mean_roll_mean100', 'change_abs_roll_mean100', 'min_roll_std1000', 'change_abs_roll_std1000', 'mean_roll_mean1000', 'change_abs_roll_mean1000' ], inplace=True)
+	df.drop(columns=[ 'fft_min', 'fft_max', 'fft_min_first5k', 'fft_max_first5k', 'fft_min_last5k', 'fft_mean_first5k', 'fft_max_first1k', 'fft_trend', 'fft_trend_abs', 'abs_min', 'std_first5k', 'std_last5k', 'std_first1k', 'std_last1k', 'trend', 'trend_abs', 'hann_window_mean', 'meanA', 'varAnorm', 'skewA', 'kurtAnorm', 'meanB', 'varBnorm', 'skewB', 'kurtBnorm', 'min_roll_std10', 'change_abs_roll_std10', 'mean_roll_mean10', 'change_abs_roll_mean10', 'min_roll_std100', 'change_abs_roll_std100', 'mean_roll_mean100', 'change_abs_roll_mean100', 'min_roll_std1000', 'change_abs_roll_std1000', 'mean_roll_mean1000', 'change_abs_roll_mean1000' ], inplace=True)
 	for col in df.columns:
 		if "stft_" in col:
 			df.drop(col, axis=1, inplace=True)
