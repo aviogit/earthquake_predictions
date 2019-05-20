@@ -87,14 +87,21 @@ def main(argv):
 		print(f"Features mismatch: {scaled_nfeat} vs. {unscaled_xtr_nfeat} vs. {unscaled_xte_nfeat}")
 		sys.exit(1)
 
-	df = scaled_features_train_test
-	#df = unscaled_x
+	good_old_features_train_fname    = basedir + 'features-2019-05-13_20.12.31-feature_count-151-batch_size-32-epochs-1000.csv'
+	good_old_features_train          = pd.read_csv(good_old_features_train_fname)
+	#unscaled_x			 = good_old_features_train
+	#unk_features_train_fname         = basedir + 'training-set-features-2019-05-17_16.59.52-feature_count-225.csv'
+	#unscaled_x                       = pd.read_csv(unk_features_train_fname)
+	#df = scaled_features_train_test
+	df = unscaled_x
 	for col in range(scaled_nfeat):
 		ax = plt.gca()
 		ax.set_xlabel("Test Sample")
 		ax.set_ylabel("Value")
 		ax.legend(df.columns[col])
 		df.iloc[ : , col].plot(kind='line', ax=ax, sharex=True, legend=True)
+		ax = plt.gca()
+		good_old_features_train.iloc[ : , -1].plot(kind='line', ax=ax, sharex=True, legend=True)
 		#print(df.columns[col]);
 		mng = plt.get_current_fig_manager()
 		#mng.window.state('withdrawn')
