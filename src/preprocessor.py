@@ -330,6 +330,7 @@ def _append_features_wrapper(data, aggregate_length, do_fft, do_stft, i, stat_su
 
 	step_data = data[i:i + aggregate_length]
 
+	# mmm after all, don't know if this is such a good idea...
 	step_data_mean    = step_data.mean()
 	step_data_mean[1] = 0
 

@@ -130,6 +130,17 @@ def predict_single_on_scaled_features(model, x_test):
 	submission.to_csv('submission.csv')
 
 
+# Oh-oh-oh! Very bad news!!! calling drop_useless_features() as it is now (e.g. with all the means, etc.) totally
+# wipes information from the dataset! Predictions becomes all in the range of more or less 5! This stuff is incredible!
+def drop_useless_features(df):
+	df.drop(columns=[ 'mean', 'fft_min', 'fft_max', 'fft_min_first5k', 'fft_max_first5k', 'fft_min_last5k', 'fft_mean_first5k', 'fft_max_first1k', 'fft_trend', 'fft_trend_abs', 'abs_min', 'std_first5k', 'std_last5k', 'std_first1k', 'std_last1k', 'trend', 'trend_abs', 'hann_window_mean', 'meanA', 'varAnorm', 'skewA', 'kurtAnorm', 'meanB', 'varBnorm', 'skewB', 'kurtBnorm', 'min_roll_std10', 'change_abs_roll_std10', 'mean_roll_mean10', 'change_abs_roll_mean10', 'min_roll_std100', 'change_abs_roll_std100', 'mean_roll_mean100', 'change_abs_roll_mean100', 'min_roll_std1000', 'change_abs_roll_std1000', 'mean_roll_mean1000', 'change_abs_roll_mean1000' ], inplace=True)
+	for col in df.columns:
+		if "stft_" in col:
+			df.drop(col, axis=1, inplace=True)
+
+	print(df.head)
+	print(df.shape)
+
 
 def main(argv):
 	# 0. Read this: http://theorangeduck.com/page/neural-network-not-working?imm_mid=0f6562&cmp=em-data-na-na-newsltr_20170920
@@ -166,6 +177,11 @@ def main(argv):
 		print(f'Loading test     set features from file: {argv[2]}')
 		test_set_features = pd.read_csv(argv[2])
 		test_set_features.drop(columns=['Unnamed: 0'], inplace=True)
+
+
+		drop_useless_features(features)
+		drop_useless_features(test_set_features)
+
 		print(features)
 		print(test_set_features)
 		feature_count          = len(features.columns)-1
@@ -245,7 +261,7 @@ def main(argv):
 
 	# Training parameters
 	batch_size = 32
-	epochs = 1000
+	epochs = 100
 
 	'''
 	# build the common suffix for every output file in this run
