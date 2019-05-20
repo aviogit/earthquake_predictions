@@ -263,8 +263,8 @@ def main(argv):
 	print(f'Using a test     set of {test_set_feature_count} features and {len(test_set_features)} rows.')
 
 	# Training parameters
-	batch_size = 32
-	epochs = 100
+	batch_size = 8
+	epochs = 4000
 
 	'''
 	# build the common suffix for every output file in this run
