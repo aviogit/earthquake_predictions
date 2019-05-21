@@ -113,7 +113,7 @@ def create_labeled_test_set():
 	#submission_avg.to_csv('submission_avg.csv')
 	return df
 
-def predict_single_on_scaled_features(model, x_test):
+def predict_single_on_scaled_features(model, x_test, base_name):
 	submission = pd.read_csv(
 		base_dir + '/sample_submission.csv',
 		index_col='seg_id',
@@ -126,8 +126,10 @@ def predict_single_on_scaled_features(model, x_test):
 		submission.time_to_failure[i] = model.predict(x_test[i].reshape(1,x_test.shape[1],1))
 		print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
 
+	submission_name = 'submission-' + base_name + '.csv'
+ 
 	submission.head()
-	submission.to_csv('submission.csv')
+	submission.to_csv(submission_name)
 
 
 # Oh-oh-oh! Very bad news!!! calling drop_useless_features() as it is now (e.g. with all the means, etc.) totally
@@ -189,6 +191,20 @@ def main(argv):
 		print(test_set_features)
 		feature_count          = len(features.columns)-1
 		test_set_feature_count = len(test_set_features.columns)-1
+
+
+		features_diff = features.iloc[ : , :feature_count].diff()
+		features.iloc[ : , :feature_count] = features_diff.iloc[ : , :feature_count]
+		features = features.iloc[1:]
+		print(features.head())
+		test_set_features_diff = test_set_features.iloc[ : , :feature_count].diff()
+		test_set_features.iloc[ : , :feature_count] = test_set_features_diff.iloc[ : , :feature_count]
+		test_set_features = test_set_features.iloc[1:]
+		print(test_set_features.head())
+		sys.exit(0)
+
+
+
 	else:
 		# Process training set
 		fname = base_dir + '/train.csv.gz'
@@ -263,7 +279,7 @@ def main(argv):
 	print(f'Using a test     set of {test_set_feature_count} features and {len(test_set_features)} rows.')
 
 	# Training parameters
-	batch_size = 8
+	batch_size = 16
 	epochs = 4000
 
 	'''
@@ -287,6 +303,9 @@ def main(argv):
 	if len(argv) > 3:
 		model_name = argv[3]
 
+		model = Rnn(feature_count)
+		x_train, y_train, x_valid, y_valid = model.create_dataset(training_set, test_set)
+
 		print(20*'*', 'Loading pre-trained Keras model', 20*'*')
 		print(20*'*', 'Keras model will be loaded from:', model_name, 20*'*')
 		model = load_model(model_name)
@@ -308,7 +327,7 @@ def main(argv):
 
 	print(20*'*', 'Start of prediction ', 20*'*')
 	#predict_single(model)
-	predict_single_on_scaled_features(model, x_valid)
+	predict_single_on_scaled_features(model, x_valid, base_name)
 	print(20*'*', 'End of prediction ', 20*'*')
 
 
