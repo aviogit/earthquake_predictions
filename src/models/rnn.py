@@ -201,18 +201,6 @@ class Rnn:
 		#x_train, y_train, x_valid, y_valid = self._create_x_y_normalized_across_all_data(training_set, validation_set, scaled_features_name)
 		x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set, scaled_features_name)
 
-		'''
-		x_train, y_train = self._create_x_y(training_set)
-		x_valid, y_valid = self._create_x_y(validation_set)
-		'''
-
-		'''
-		print(type((x_train)), x_train.shape)
-		print(type((y_train)), y_train.shape)
-		print(type((x_valid)), x_valid.shape)
-		print(type((y_valid)), y_valid.shape)
-		'''
-
 		# checkpoint
 		filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{val_loss:.5f}.hdf5"
 		checkpoint	= ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
@@ -248,77 +236,14 @@ class Rnn:
 
 	def _create_x_y(self, training_set: pd.core.frame.DataFrame, validation_set: pd.core.frame.DataFrame, scaled_features_name):
 
-		'''
-		print(f'Concatenating training set (shape: {training_set.shape}) and validation set (shape: {validation_set.shape}) before scaling the dataset(s).')
-		train_plus_validation_set = pd.concat([training_set, validation_set], ignore_index=True)
-		print(f'Concatenation complete, final dataset has shape: {train_plus_validation_set.shape}).')
-		'''
-
 		train_len = len(training_set.index)
 		valid_len = len(validation_set.index)
-
-		#print(training_set.columns)
-		#print(validation_set.columns)
-
-		'''
-		print(train_len, valid_len, self.num_features, training_set.columns, validation_set.columns)
-		print(train_plus_validation_set)
-		print(training_set.iloc[:, :self.num_features])
-		print(validation_set.iloc[:, :self.num_features])
-		print(train_plus_validation_set.iloc[:, :self.num_features])
-		'''
-
-		'''
-		# Now we MaxMinScale (or StandardScale) on the whole dataset (train + test/validation set) because, as said on Kaggle discussions, the mean
-		# of an acoustic signal doesn't have much sense (and it's probably a bias of the instrument). So we just remove it across the whole dataset.
-		x_train_valid_rescaled = self.scaler.fit_transform(train_plus_validation_set.iloc[:, :self.num_features])
-		'''
-
 
 		# Now we MaxMinScale (or StandardScale) the two separate datasets (train and test/validation set) because the two dataset have very different
 		# behavior and properties and it makes no sense to try to handle them as "an unique thing".
 		x_train_rescaled = self.scaler.fit_transform(training_set.iloc[:  , :self.num_features])
 		x_valid_rescaled = self.scaler.transform    (validation_set.iloc[:, :self.num_features])
 		# Both x_train_rescaled and x_valid_rescaled are without their 'time_to_failure' column!
-
-		#print(x_train_rescaled.shape)
-		#print(x_valid_rescaled.shape)
-
-
-		'''
-		labeled_training_set   = pd.concat([x_train, y_train], axis=1)
-		labeled_validation_set = pd.concat([x_valid, y_valid], axis=1)
-		scaled_train_valid_set = pd.concat([labeled_training_set, labeled_validation_set], ignore_index=True)
-		'''
-
-		'''
-		x_train_valid_rescaled_df = pd.DataFrame(x_train_valid_rescaled,
-							index=train_plus_validation_set.index,
-							columns=train_plus_validation_set.columns[:-1],
-							dtype=np.float32)
-		print(x_train_valid_rescaled_df)
-		print(f'Saving scaled features to: {scaled_features_name}')
-		x_train_valid_rescaled_df.to_csv(scaled_features_name)
-		'''
-
-
-
-
-
-
-		'''
-		# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
-		x_train = np.array(x_train_valid_rescaled[:train_len, :self.num_features])
-		y_train = np.array(train_plus_validation_set.iloc[:train_len, self.num_features])
-
-		# In a similar way, the validation set now is: the rescaled set, up to valid_len rows and up to total columns - 1 (the time_to_failure)
-		x_valid = np.array(x_train_valid_rescaled[:valid_len, :self.num_features]) 
-		y_valid = np.array(train_plus_validation_set.iloc[:valid_len, self.num_features])
-
-		# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
-		x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
-		x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
-		'''
 
 		# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
 		x_train = np.array(x_train_rescaled)
@@ -373,19 +298,6 @@ class Rnn:
 
 			self.create_model(len(cols))
 
-
-		'''
-		good_feats = sel_.get_support()
-		new_features = []
-		for good, feat in zip(good_feats, training_set.columns):
-		if good:
-			new_features.append(feat)
-		print(new_features)
-
-		sys.exit(0)
-		'''
-
-
 		# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
 		x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
 		x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
@@ -414,25 +326,11 @@ class Rnn:
 		train_len = len(training_set.index)
 		valid_len = len(validation_set.index)
 
-		'''
-		print(train_len, valid_len, self.num_features, training_set.columns, validation_set.columns)
-		print(train_plus_validation_set)
-		print(training_set.iloc[:, :self.num_features])
-		print(validation_set.iloc[:, :self.num_features])
-		print(train_plus_validation_set.iloc[:, :self.num_features])
-		'''
 
 		# Now we MaxMinScale (or StandardScale) on the whole dataset (train + test/validation set) because, as said on Kaggle discussions, the mean
 		# of an acoustic signal doesn't have much sense (and it's probably a bias of the instrument). So we just remove it across the whole dataset.
 		x_train_valid_rescaled = self.scaler.fit_transform(train_plus_validation_set.iloc[:, :self.num_features])
 
-
-
-		'''
-		labeled_training_set   = pd.concat([x_train, y_train], axis=1)
-		labeled_validation_set = pd.concat([x_valid, y_valid], axis=1)
-		scaled_train_valid_set = pd.concat([labeled_training_set, labeled_validation_set], ignore_index=True)
-		'''
 
 		x_train_valid_rescaled_df = pd.DataFrame(x_train_valid_rescaled,
 							index=train_plus_validation_set.index,
@@ -441,11 +339,6 @@ class Rnn:
 		print(x_train_valid_rescaled_df)
 		print(f'Saving scaled features to: {scaled_features_name}')
 		x_train_valid_rescaled_df.to_csv(scaled_features_name)
-
-
-
-
-
 
 
 		# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
