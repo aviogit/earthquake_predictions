@@ -146,6 +146,22 @@ def drop_useless_features(df):
 	print(df.head)
 	print(df.shape)
 
+def differentiate_features_series(features, feature_count, fname_prefix_to_save_to=None):
+		features_diff = features.iloc[ : , 1:feature_count].diff()
+		features.iloc[ : , 1:feature_count] = features_diff.iloc[ : , 1:feature_count]
+		features = features.iloc[1:]	# The first row is full of NaN
+		print(features.head())
+		if fname_prefix_to_save_to != None:
+			fname = fname_prefix_to_save_to + '-' + str(len(features.index)) + 'x' + str(feature_count) + '.csv'
+			features.to_csv(fname)
+		'''
+		test_set_features_diff = test_set_features.iloc[ : , :feature_count].diff()
+		test_set_features.iloc[ : , :feature_count] = test_set_features_diff.iloc[ : , :feature_count]
+		test_set_features = test_set_features.iloc[1:]
+		print(test_set_features.head())
+		test_set_features.to_csv('/tmp/test_set_features-diff-2624x160.csv')
+		'''
+
 
 def main(argv):
 	# 0. Read this: http://theorangeduck.com/page/neural-network-not-working?imm_mid=0f6562&cmp=em-data-na-na-newsltr_20170920
@@ -174,6 +190,8 @@ def main(argv):
 
 	segment_size = 150000
 	base_time = datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
+	do_differentiate_features_series	= False
+	do_drop_useless_features		= False
 
 	if len(argv) > 2:
 		print(f'Loading training set features from file: {argv[1]}')
@@ -184,15 +202,21 @@ def main(argv):
 		test_set_features.drop(columns=['Unnamed: 0'], inplace=True)
 
 
-		drop_useless_features(features)
-		drop_useless_features(test_set_features)
+		if do_drop_useless_features:
+			drop_useless_features(features)
+			drop_useless_features(test_set_features)
 
 		print(features)
 		print(test_set_features)
-		feature_count          = len(features.columns)-1
+		feature_count          = len(features.columns)-1		# remove time_to_failure
 		test_set_feature_count = len(test_set_features.columns)-1
 
 
+		if do_differentiate_features_series:
+			differentiate_features_series(features,          feature_count,          '/tmp/features')
+			differentiate_features_series(test_set_features, test_set_feature_count, '/tmp/test_set_features')
+
+		'''
 		features_diff = features.iloc[ : , :feature_count].diff()
 		features.iloc[ : , :feature_count] = features_diff.iloc[ : , :feature_count]
 		features = features.iloc[1:]
@@ -201,7 +225,10 @@ def main(argv):
 		test_set_features.iloc[ : , :feature_count] = test_set_features_diff.iloc[ : , :feature_count]
 		test_set_features = test_set_features.iloc[1:]
 		print(test_set_features.head())
+		features.to_csv('/tmp/features-diff-4195x160.csv')
+		test_set_features.to_csv('/tmp/test_set_features-diff-2624x160.csv')
 		sys.exit(0)
+		'''
 
 
 

@@ -171,6 +171,8 @@ class Rnn:
 		self.model.compile(optimizer=adam(lr=0.01), loss="mae")
 		'''
 
+		'''
+		# This one stops learning too early as well
 		self.model = Sequential()
 		self.model.add(CuDNNLSTM(16, input_shape=(self.num_features, 1), return_sequences=False))
 		self.model.add(Dropout(0.2))
@@ -178,6 +180,14 @@ class Rnn:
 		self.model.add(Dropout(0.2))
 		self.model.add(Dense(1))
 		self.model.compile(optimizer=adam(lr=0.01), loss="mae")
+		'''
+
+		# Original model again, let's see how it performs with differentiated + scaled features
+		self.model = Sequential()
+		self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1)))
+		self.model.add(Dense(32, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.005), loss="mae")
 
 		print(self.model.summary())
 

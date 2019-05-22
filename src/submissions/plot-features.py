@@ -66,8 +66,10 @@ def main(argv):
 
 	#scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_14.28.45-feature_count-225.csv'
 	scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_16.59.52-feature_count-225.csv'
-	unscaled_features_train_fname    = basedir + 'features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv'
-	unscaled_features_test_fname     = basedir + 'test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv'
+	#unscaled_features_train_fname    = basedir + 'features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv'
+	#unscaled_features_test_fname     = basedir + 'test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv'
+	unscaled_features_train_fname    = '/tmp/features-4194x159.csv'
+	unscaled_features_test_fname     = '/tmp/test_set_features-2623x159.csv'
 
 	scaled_features_train_test       = pd.read_csv(scaled_features_train_test_fname)
 	unscaled_features_train          = pd.read_csv(unscaled_features_train_fname)
@@ -83,9 +85,11 @@ def main(argv):
 	
 	unscaled_x = pd.concat([unscaled_features_train, unscaled_features_test], ignore_index=True)
 
+	'''
 	if scaled_nfeat != unscaled_xtr_nfeat or unscaled_xtr_nfeat != unscaled_xte_nfeat:
 		print(f"Features mismatch: {scaled_nfeat} vs. {unscaled_xtr_nfeat} vs. {unscaled_xte_nfeat}")
 		sys.exit(1)
+	'''
 
 	good_old_features_train_fname    = basedir + 'features-2019-05-13_20.12.31-feature_count-151-batch_size-32-epochs-1000.csv'
 	good_old_features_train          = pd.read_csv(good_old_features_train_fname)
