@@ -60,8 +60,9 @@ class Rnn:
 		##########################################################################################################
 
 		self.history = None
-		self.do_logistic_regression = True
-		#self.scaler = MinMaxScaler(feature_range=(0, self.num_features))		# This is wrooong!
+		self.do_logistic_regression	= False
+		self.do_rescale			= True						# Bring everything in the range [0, 1]
+		#self.scaler = MinMaxScaler(feature_range=(0, self.num_features))		# This was not so wrooong... it's rather correct indeed!
 		self.scaler = MinMaxScaler(feature_range=(0, 1))
 
 		self.create_model(num_features)
@@ -239,19 +240,29 @@ class Rnn:
 		train_len = len(training_set.index)
 		valid_len = len(validation_set.index)
 
-		# Now we MaxMinScale (or StandardScale) the two separate datasets (train and test/validation set) because the two dataset have very different
-		# behavior and properties and it makes no sense to try to handle them as "an unique thing".
-		x_train_rescaled = self.scaler.fit_transform(training_set.iloc[:  , :self.num_features])
-		x_valid_rescaled = self.scaler.transform    (validation_set.iloc[:, :self.num_features])
-		# Both x_train_rescaled and x_valid_rescaled are without their 'time_to_failure' column!
 
-		# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
-		x_train = np.array(x_train_rescaled)
-		y_train = np.array(training_set.iloc[: , self.num_features])
+		if self.do_rescale:
+			# Now we MaxMinScale (or StandardScale) the two separate datasets (train and test/validation set) because the two dataset have very different
+			# behavior and properties and it makes no sense to try to handle them as "an unique thing".
+			x_train_rescaled = self.scaler.fit_transform(training_set.iloc[:  , :self.num_features])
+			x_valid_rescaled = self.scaler.transform    (validation_set.iloc[:, :self.num_features])
+			# Both x_train_rescaled and x_valid_rescaled are without their 'time_to_failure' column!
 
-		# In a similar way, the validation set now is: the rescaled set, up to valid_len rows and up to total columns - 1 (the time_to_failure)
-		x_valid = np.array(x_valid_rescaled) 
-		y_valid = np.array(validation_set.iloc[:, self.num_features])
+			# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
+			x_train = np.array(x_train_rescaled)
+			y_train = np.array(training_set.iloc[: , self.num_features])
+
+			# In a similar way, the validation set now is: the rescaled set, up to valid_len rows and up to total columns - 1 (the time_to_failure)
+			x_valid = np.array(x_valid_rescaled) 
+			y_valid = np.array(validation_set.iloc[:, self.num_features])
+		else:
+			# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
+			x_train = np.array(training_set.iloc[: , :self.num_features])
+			y_train = np.array(training_set.iloc[: ,  self.num_features])
+
+			# In a similar way, the validation set now is: the rescaled set, up to valid_len rows and up to total columns - 1 (the time_to_failure)
+			x_valid = np.array(validation_set.iloc[:, :self.num_features]) 
+			y_valid = np.array(validation_set.iloc[:,  self.num_features])
 
 		print(x_train.shape)
 		print(x_valid.shape)

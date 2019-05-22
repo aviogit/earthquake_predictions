@@ -126,7 +126,8 @@ def predict_single_on_scaled_features(model, x_test, base_name):
 		submission.time_to_failure[i] = model.predict(x_test[i].reshape(1,x_test.shape[1],1))
 		print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
 
-	submission_name = 'submission-' + base_name + '.csv'
+	milliseconds = datetime.utcnow().strftime('%f')					# these are useful for huge-batch-parallel processing of pre-trained models
+	submission_name = 'submission-' + base_name + '-' + milliseconds + '.csv'
  
 	submission.head()
 	submission.to_csv(submission_name)
@@ -191,7 +192,7 @@ def main(argv):
 	segment_size = 150000
 	base_time = datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
 	do_differentiate_features_series	= False
-	do_drop_useless_features		= False
+	do_drop_useless_features		= True
 
 	if len(argv) > 2:
 		print(f'Loading training set features from file: {argv[1]}')
@@ -337,8 +338,8 @@ def main(argv):
 		print(20*'*', 'Keras model will be loaded from:', model_name, 20*'*')
 		model = load_model(model_name)
 		print(20*'*', 'End of loading', 20*'*')
+		print(model.summary())
 
-		# TODO: here we don't have any x_train, y_train, x_valid, y_valid
 	else:
 		model_name           = base_dir + '/earthquake-predictions-keras-model-'     + base_name + '.hdf5'
 		scaled_features_name = base_dir + '/earthquake-predictions-scaled-features-' + base_name + '.csv'
