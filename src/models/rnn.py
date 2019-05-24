@@ -20,6 +20,14 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 
+
+# Plot CNN architecture
+import pydot
+from keras.utils import plot_model
+from IPython.display import SVG
+import keras.utils.vis_utils 
+from keras.utils.vis_utils import model_to_dot
+
 class Rnn:
 	def __init__(self, num_features: int):
 
@@ -378,3 +386,55 @@ class Rnn:
 		x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
 
 		return x_train, y_train, x_valid, y_valid
+
+	def create_convolutional_model(self):
+		self.model = Sequential()
+		
+		#1st conv layer
+		self.model.add(Conv2D(32, (4,10), padding="same",
+		                 input_shape=(X.shape[1],X.shape[2],X.shape[3]),data_format="channels_last"))
+		self.model.add(BatchNormalization())
+		self.model.add(Activation("relu"))
+		
+		#2nd conv layer
+		self.model.add(Conv2D(32, (4,10), padding="same"))
+		self.model.add(BatchNormalization())
+		self.model.add(Activation("relu"))
+		
+		#3rd conv layer
+		self.model.add(Conv2D(32, (4,10), padding="same"))
+		self.model.add(BatchNormalization())
+		self.model.add(Activation("relu"))
+		
+		#4th conv layer
+		self.model.add(Conv2D(32, (4,10), padding="same"))
+		self.model.add(BatchNormalization())
+		self.model.add(Activation("relu"))
+		self.model.add(MaxPooling2D())
+		
+		self.model.add(Flatten())
+		
+		#FC1
+		self.model.add(Dense(128))
+		self.model.add(BatchNormalization())
+		self.model.add(Activation("relu"))
+		self.model.add(Dropout(0.3))
+		
+		#FC2
+		self.model.add(Dense(100,name ='feature_dense'))
+		self.model.load_weights(by_name=True,filepath = filepath)
+		self.model.add(BatchNormalization())
+		self.model.add(Activation("relu"))
+		
+		#output FC
+		self.model.add(Dense(2))
+		self.model.add(Activation('sigmoid'))
+		adam = optimizers.Adam(lr=0.01)
+		
+		self.model.compile(loss='binary_crossentropy', metrics=[auc], optimizer='adam')
+		self.model.summary()
+
+		plot_model(model, to_file='/tmp/cnn-model.png')
+		SVG(model_to_dot(model).create(prog='dot', format='svg'))
+
+

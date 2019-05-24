@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 from matplotlib import style
 style.use('fivethirtyeight')
 
+import scipy.fftpack
 
 base_dir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped'
 
@@ -162,6 +163,135 @@ def differentiate_features_series(features, feature_count, fname_prefix_to_save_
 		print(test_set_features.head())
 		test_set_features.to_csv('/tmp/test_set_features-diff-2624x160.csv')
 		'''
+def clean_ttf_floats(df):
+	factor = 10000
+	# because both unique() and groupby() fail silently with my floats!
+	print(f'Cleaning up dirty TTF values in the {len(df.index)}-rows long dataframe, please wait...')
+	df['time_to_failure'] = (df['time_to_failure'] * factor).astype(int) / factor
+
+def convolve_acoustic_data(training_set, segment_size, chip_size=4096):
+	#df = training_set.reshape(chip_size, :, 2)
+	df = training_set
+#	n_segs = len(training_set) / segment_size			# e.g. 37 segments of 150k samples each
+#	print(n_segs)
+#	dfs = np.array_split(df, len(training_set)/chip_size, axis=0)
+#	print(len(dfs))
+#	print(dfs[0])
+#	print(dfs[1])
+#	print(dfs[-1])
+
+	'''
+	short_df = df.iloc[ 4090 : 4100 ]
+	print(short_df)
+
+
+
+	clean_ttf_floats(short_df)
+
+	stfu = short_df['time_to_failure'].unique()
+	print(stfu)
+
+	grp = tuple(short_df.groupby('time_to_failure'))
+	print(grp[0])
+	print(grp[1])
+	'''
+
+
+	clean_ttf_floats(df)
+	for i in range(0, len(training_set), chip_size):
+		print(i)
+		print(df.iloc[i:i+chip_size, :])
+		if i > 32000:
+			sys.exit()
+	sys.exit()
+
+	stfu = df['time_to_failure'].unique()
+	print(stfu)
+	grp = tuple(df.groupby('time_to_failure'))
+	print(f'Grouped by \'time_to_failure\' and obtained {len(grp)} dataframes')
+	print(type(grp[0][0]), type(grp[0][1]))		# ooohhh! this returns <class 'float'> and <class 'pandas.core.frame.DataFrame'>
+	print(grp[0][1].head())
+	print(grp[1][1].head())
+	print(grp[-2][1].head())
+	print(grp[-1][1].head())
+
+	for_humans = False
+
+	abs_counter = 0
+	counter = 0
+	chiplist = []
+	for gr in grp:
+		if counter % 4 == 0 and len(chiplist) != 0:
+			counter = 0
+		else:
+			chiplist.append(gr[1])
+			counter += 1
+			continue
+
+		chip = pd.concat(chiplist)
+		print(len(chip))
+		ax = plt.gca()
+
+		col = 'acoustic_data'
+		if for_humans:
+			ax.set_xlabel("Test Sample")
+			ax.set_ylabel("Value")
+			ax.legend(col)
+			plt.grid(True)
+		else:
+			plt.axis('off')
+			ax.legend().remove()
+
+		#ax.legend(df.columns[col])
+		#ax.set_ylim((0, 1.2*ax.get_ylim()[1]))
+		ax.set_ylim((-4000, 4000))
+
+		chip[col].plot(kind='line', lw=1, ax=ax, sharex=True)
+		ax = plt.gca()
+		#print(chip.iloc[ : , -1])
+		if for_humans:
+			chip.iloc[ : , -1].plot(kind='line', lw=1, ax=ax, sharex=True)
+		#print(df.columns[col]);
+		mng = plt.get_current_fig_manager()
+		#mng.window.state('withdrawn')
+		mng.resize(*mng.window.maxsize())
+		#plt.show()
+		filename = '/tmp/lanl-acoustic-signal-{:06d}.png'.format(abs_counter)
+		plt.savefig(filename, dpi=300)
+		plt.close()
+
+
+		ax = plt.gca()
+
+		if for_humans:
+			ax.set_xlabel("Test Sample")
+			ax.set_ylabel("Value")
+			ax.legend(col)
+			plt.grid(True)
+		else:
+			plt.axis('off')
+			ax.legend().remove()
+
+		ax.set_ylim((0, 100000))
+		ax.set_xlim((10, 2000000))
+		yf = scipy.fft(chip['acoustic_data'].values)
+		#xf = scipy.fftpack.fftfreq(yf.size, 1 / 25e3)		# up to 12.5khz
+		xf = scipy.fftpack.fftfreq(yf.size, 1 / 4e6)
+		plt.plot(xf[:xf.size//2], abs(yf)[:yf.size//2], lw=1)
+		mng = plt.get_current_fig_manager()
+		mng.resize(*mng.window.maxsize())
+		#plt.show()
+		filename = '/tmp/lanl-acoustic-spectrum-{:06d}.png'.format(abs_counter)
+		plt.savefig(filename, dpi=300)
+		plt.close()
+
+		chiplist = []
+
+		print(f'Showed graph no. {abs_counter}')
+		abs_counter += 1
+		
+	sys.exit()
+	
 
 
 def main(argv):
@@ -233,30 +363,25 @@ def main(argv):
 
 
 
+
 	else:
 		# Process training set
-		fname = base_dir + '/train.csv.gz'
-		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# remember to uncomment this to do a quicktest before every major change
-
-		'''
-		print('Opening and reading file:', fname)
-		gzipped_file = gzip.open(fname, 'r')
-		file_content = gzipped_file.read()
-
-		print('Finished reading file, filling the DataFrame...')
-		training_set = pd.read_csv(io.BytesIO(file_content), dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
-		#save_summary_plot(training_set)
-		del file_content			# try to free some memory
-		'''
+		#fname = base_dir + '/train.csv.gz'
+		fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# remember to uncomment this to do a quicktest before every major change
 
 		print('Opening and reading file:', fname)
 		training_set = pd.read_csv(fname, compression='gzip', dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
 		print(training_set.head())
+		print(training_set.describe())
 
-		print('Extracting features from the training set...')
-		features = get_stat_summaries(training_set, segment_size , do_fft=True, do_stft=True, run_parallel=True)
+		do_convolution_instead_of_manual_FE = True
+		if do_convolution_instead_of_manual_FE:
+			convolve_acoustic_data(training_set, segment_size)
+		else:
+			print('Extracting features from the training set...')
+			features = get_stat_summaries(training_set, segment_size, do_fft=True, do_stft=True, run_parallel=True)
 
-		feature_count = len(features.columns)-1
+			feature_count = len(features.columns)-1
 
 		# build the common suffix for every output file in this run
 		base_name = base_time + '-feature_count-' + str(feature_count)
