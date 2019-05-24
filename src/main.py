@@ -14,6 +14,7 @@ from preprocessor import get_stat_summaries
 from feature_extractor import extract
 from models.rnn import Rnn
 from keras.models import load_model
+from acoustic_graphs import plot_acoustic_signal_and_spectrum
 
 from sklearn.linear_model import LinearRegression
 
@@ -22,6 +23,8 @@ from matplotlib import style
 style.use('fivethirtyeight')
 
 import scipy.fftpack
+
+from joblib import Parallel, delayed
 
 base_dir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped'
 
@@ -169,129 +172,45 @@ def clean_ttf_floats(df):
 	print(f'Cleaning up dirty TTF values in the {len(df.index)}-rows long dataframe, please wait...')
 	df['time_to_failure'] = (df['time_to_failure'] * factor).astype(int) / factor
 
-def convolve_acoustic_data(training_set, segment_size, chip_size=4096):
-	#df = training_set.reshape(chip_size, :, 2)
+
+def convolve_acoustic_data(training_set, segment_size, chip_size=4096, for_humans = False):
 	df = training_set
-#	n_segs = len(training_set) / segment_size			# e.g. 37 segments of 150k samples each
-#	print(n_segs)
-#	dfs = np.array_split(df, len(training_set)/chip_size, axis=0)
-#	print(len(dfs))
-#	print(dfs[0])
-#	print(dfs[1])
-#	print(dfs[-1])
-
-	'''
-	short_df = df.iloc[ 4090 : 4100 ]
-	print(short_df)
-
-
-
-	clean_ttf_floats(short_df)
-
-	stfu = short_df['time_to_failure'].unique()
-	print(stfu)
-
-	grp = tuple(short_df.groupby('time_to_failure'))
-	print(grp[0])
-	print(grp[1])
-	'''
-
-
 	clean_ttf_floats(df)
+
+	#Parallel(n_jobs=8*4, prefer='threads')(
+	Parallel(n_jobs=8, prefer='processes')(
+		delayed(plot_acoustic_signal_and_spectrum)(training_set, chip_size, i)
+		for i in range(0, len(training_set), chip_size))
+
+	'''
 	for i in range(0, len(training_set), chip_size):
+		abs_counter = int(i / chip_size)
+		chip = df.iloc[i:i+chip_size, :]
+		print(chip)
 		print(i)
-		print(df.iloc[i:i+chip_size, :])
-		if i > 32000:
-			sys.exit()
-	sys.exit()
-
-	stfu = df['time_to_failure'].unique()
-	print(stfu)
-	grp = tuple(df.groupby('time_to_failure'))
-	print(f'Grouped by \'time_to_failure\' and obtained {len(grp)} dataframes')
-	print(type(grp[0][0]), type(grp[0][1]))		# ooohhh! this returns <class 'float'> and <class 'pandas.core.frame.DataFrame'>
-	print(grp[0][1].head())
-	print(grp[1][1].head())
-	print(grp[-2][1].head())
-	print(grp[-1][1].head())
-
-	for_humans = False
-
-	abs_counter = 0
-	counter = 0
-	chiplist = []
-	for gr in grp:
-		if counter % 4 == 0 and len(chiplist) != 0:
-			counter = 0
-		else:
-			chiplist.append(gr[1])
-			counter += 1
-			continue
-
-		chip = pd.concat(chiplist)
 		print(len(chip))
-		ax = plt.gca()
 
-		col = 'acoustic_data'
-		if for_humans:
-			ax.set_xlabel("Test Sample")
-			ax.set_ylabel("Value")
-			ax.legend(col)
-			plt.grid(True)
-		else:
-			plt.axis('off')
-			ax.legend().remove()
+		plot_acoustic_signal_and_spectrum(chip, abs_counter)
 
-		#ax.legend(df.columns[col])
-		#ax.set_ylim((0, 1.2*ax.get_ylim()[1]))
-		ax.set_ylim((-4000, 4000))
-
-		chip[col].plot(kind='line', lw=1, ax=ax, sharex=True)
-		ax = plt.gca()
-		#print(chip.iloc[ : , -1])
-		if for_humans:
-			chip.iloc[ : , -1].plot(kind='line', lw=1, ax=ax, sharex=True)
-		#print(df.columns[col]);
-		mng = plt.get_current_fig_manager()
-		#mng.window.state('withdrawn')
-		mng.resize(*mng.window.maxsize())
-		#plt.show()
-		filename = '/tmp/lanl-acoustic-signal-{:06d}.png'.format(abs_counter)
-		plt.savefig(filename, dpi=300)
-		plt.close()
-
-
-		ax = plt.gca()
-
-		if for_humans:
-			ax.set_xlabel("Test Sample")
-			ax.set_ylabel("Value")
-			ax.legend(col)
-			plt.grid(True)
-		else:
-			plt.axis('off')
-			ax.legend().remove()
-
-		ax.set_ylim((0, 100000))
-		ax.set_xlim((10, 2000000))
-		yf = scipy.fft(chip['acoustic_data'].values)
-		#xf = scipy.fftpack.fftfreq(yf.size, 1 / 25e3)		# up to 12.5khz
-		xf = scipy.fftpack.fftfreq(yf.size, 1 / 4e6)
-		plt.plot(xf[:xf.size//2], abs(yf)[:yf.size//2], lw=1)
-		mng = plt.get_current_fig_manager()
-		mng.resize(*mng.window.maxsize())
-		#plt.show()
-		filename = '/tmp/lanl-acoustic-spectrum-{:06d}.png'.format(abs_counter)
-		plt.savefig(filename, dpi=300)
-		plt.close()
-
-		chiplist = []
-
-		print(f'Showed graph no. {abs_counter}')
+		print(f'Graph no. {abs_counter}')
 		abs_counter += 1
+	'''
 		
 	sys.exit()
 	
+
+
+def run_mp_build():
+	t0 = time.time()
+	num_proc = NUM_THREADS
+	pool = mp.Pool(processes=num_proc)
+	results = [pool.apply_async(build_fields, args=(pid, )) for pid in range(NUM_THREADS)]
+	output = [p.get() for p in results]
+	num_built = sum(output)
+	pool.close()
+	pool.join()
+	print(num_built)
+	print('Run time: %.2f' % (time.time() - t0))
 
 
 def main(argv):
@@ -366,8 +285,8 @@ def main(argv):
 
 	else:
 		# Process training set
-		#fname = base_dir + '/train.csv.gz'
-		fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# remember to uncomment this to do a quicktest before every major change
+		fname = base_dir + '/train.csv.gz'
+		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# remember to uncomment this to do a quicktest before every major change
 
 		print('Opening and reading file:', fname)
 		training_set = pd.read_csv(fname, compression='gzip', dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
