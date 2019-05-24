@@ -152,6 +152,9 @@ class Rnn:
 		# Ok this worked slightly better! 151 features, normalized data, batch=32, 2000 epochs and now I get 1.554!
 
 		# Ok, this one worked well, but it still overfits too early (around 1000 epochs, maybe it has just too many neurons?)
+
+		# Used this one again with validation set with TTF values obtained from best submission (second-submissions-avg.csv)
+		# The model was so fit for validation set that the public score has been the same as second-submissions-avg.csv :D:D:D
 		self.model = Sequential()
 		self.model.add(CuDNNLSTM(128, input_shape=(self.num_features, 1)))
 		self.model.add(Dense(64, activation='relu'))
@@ -183,12 +186,20 @@ class Rnn:
 		self.model.compile(optimizer=adam(lr=0.01), loss="mae")
 		'''
 
+		'''
 		# Original model again, let's see how it performs with differentiated + scaled features
 		self.model = Sequential()
 		self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1)))
 		self.model.add(Dense(32, activation='relu'))
 		self.model.add(Dense(1))
 		self.model.compile(optimizer=adam(lr=0.005), loss="mae")
+		'''
+
+		self.model = Sequential()
+		self.model.add(CuDNNGRU(128, input_shape=(self.num_features, 1)))
+		self.model.add(Dense(64, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.01), loss="mae")
 
 		print(self.model.summary())
 
@@ -203,14 +214,16 @@ class Rnn:
 		x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set, scaled_features_name)
 
 		# checkpoint
-		filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{val_loss:.5f}.hdf5"
-		checkpoint	= ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+		filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{loss:.5f}-{val_loss:.5f}.hdf5"
+		checkpoint_vloss= ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+		checkpoint_loss	= ModelCheckpoint(filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
 		#earlystopping	= EarlyStopping(monitor='val_loss', patience=5, verbose=0, mode='auto', baseline=0.5) #, restore_best_weights=True)
-		#callbacks_list	= [checkpoint, earlystopping]
+		#callbacks_list	= [checkpoint_vloss, earlystopping]
 
-		reduce_lr	= ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10, min_lr=0.0001)
+		reduce_lr_vloss	= ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10, min_lr=0.0001)
+		reduce_lr_loss	= ReduceLROnPlateau(monitor='loss',	factor=0.2, patience=10, min_lr=0.0001)
 
-		callbacks_list	= [checkpoint, reduce_lr]
+		callbacks_list	= [checkpoint_loss,checkpoint_vloss, reduce_lr_loss, reduce_lr_vloss]
 
 		#self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
 		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), epochs=epochs, batch_size=batch_size)
