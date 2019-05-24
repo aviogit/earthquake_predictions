@@ -61,7 +61,8 @@ def plot_acoustic_signal(chip, counter, col = 'acoustic_data', for_humans = Fals
 		chip.iloc[ : , -1].plot(kind='line', lw=1, ax=ax, sharex=True)
 		mng = plt.get_current_fig_manager()
 		mng.resize(*mng.window.maxsize())
-	filename = '/tmp/lanl-acoustic-signal-{:06d}.png'.format(counter)
+	basedir  = '/mnt/ros-data/datasets/LANL-Earthquake-Prediction/acoustic-graphs-for-conv2D'
+	filename = basedir + '/lanl-acoustic-signal-{:06d}.png'.format(counter)
 	plt.savefig(filename, dpi=300)
 	plt.close()
 
@@ -87,7 +88,8 @@ def plot_acoustic_spectrum(chip, counter, col = 'acoustic_data', for_humans = Fa
 	if for_humans:
 		mng = plt.get_current_fig_manager()
 		mng.resize(*mng.window.maxsize())
-	filename = '/tmp/lanl-acoustic-spectrum-{:06d}.png'.format(counter)
+	basedir  = '/mnt/ros-data/datasets/LANL-Earthquake-Prediction/acoustic-graphs-for-conv2D'
+	filename = basedir + '/lanl-acoustic-spectrum-{:06d}.png'.format(counter)
 	plt.savefig(filename, dpi=300)
 	plt.close()
 
