@@ -16,6 +16,7 @@ from feature_extractor import extract
 from models.rnn import Rnn
 from keras.models import load_model
 from acoustic_graphs import plot_acoustic_signal_and_spectrum
+from acoustic_graphs import load_images
 
 from sklearn.linear_model import LinearRegression
 
@@ -246,31 +247,63 @@ def main(argv):
 	do_differentiate_features_series	= False
 	do_drop_useless_features		= True
 	do_convolution_instead_of_manual_FE	= True
+	do_use_lgbm_model			= True
 	if do_convolution_instead_of_manual_FE:
 		chip_size = 150000
 
+	# Training parameters
+	batch_size = 16
+	epochs = 4000
+
 	if len(argv) > 2:
-		print(f'Loading training set features from file: {argv[1]}')
-		features          = pd.read_csv(argv[1])
-		features.drop(columns=['Unnamed: 0'], inplace=True)
-		print(f'Loading test     set features from file: {argv[2]}')
-		test_set_features = pd.read_csv(argv[2])
-		test_set_features.drop(columns=['Unnamed: 0'], inplace=True)
 
+		if not do_convolution_instead_of_manual_FE:
+			print(f'Loading training set features from file: {argv[1]}')
+			features          = pd.read_csv(argv[1])
+			features.drop(columns=['Unnamed: 0'], inplace=True)
+			print(f'Loading test     set features from file: {argv[2]}')
+			test_set_features = pd.read_csv(argv[2])
+			test_set_features.drop(columns=['Unnamed: 0'], inplace=True)
+	
+	
+			if do_drop_useless_features:
+				drop_useless_features(features)
+				drop_useless_features(test_set_features)
+	
+			print(features)
+			print(test_set_features)
+			feature_count          = len(features.columns)-1		# remove time_to_failure
+			test_set_feature_count = len(test_set_features.columns)-1
+	
+	
+			if do_differentiate_features_series:
+				differentiate_features_series(features,          feature_count,          '/tmp/features')
+				differentiate_features_series(test_set_features, test_set_feature_count, '/tmp/test_set_features')
+		else:
+			training_set_dir= argv[1] # /mnt/ros-data/datasets/LANL-Earthquake-Prediction/training-set-acoustic-graphs-for-conv2D...
+			test_set_dir	= argv[2] # /mnt/ros-data/datasets/LANL-Earthquake-Prediction/training-set-acoustic-graphs-for-conv2D...
+			training_set, labels = load_images(training_set_dir)
+			print(f'Loaded {len(training_set)} images with {len(labels)} labels.')
+			print(f'Training set has shape', training_set.shape)
+			feature_count = 10	# bogus value
+			model = Rnn(feature_count, do_use_lgbm_model)
+			model.create_convolutional_model(training_set)
+			print(20*'*', 'Start of training', 20*'*')
+			#print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
 
-		if do_drop_useless_features:
-			drop_useless_features(features)
-			drop_useless_features(test_set_features)
+			model_name           = base_dir + '/earthquake-predictions-CNN-LSTM-keras-model-'     + base_time + '.hdf5'
 
-		print(features)
-		print(test_set_features)
-		feature_count          = len(features.columns)-1		# remove time_to_failure
-		test_set_feature_count = len(test_set_features.columns)-1
-
-
-		if do_differentiate_features_series:
-			differentiate_features_series(features,          feature_count,          '/tmp/features')
-			differentiate_features_series(test_set_features, test_set_feature_count, '/tmp/test_set_features')
+			print(training_set.shape)
+			training_set = training_set.reshape(2, int(training_set.shape[0]/2), training_set.shape[1], training_set.shape[2], 1)
+			print(training_set.shape)
+			print(labels.shape)
+			labels = labels.reshape            (2, int(labels.shape[0]/2))
+			print(labels.shape)
+			model.cnn_lstm_fit(training_set, labels,
+						batch_size=batch_size, epochs=epochs,	# only two params (except for the inner model structure)
+						model_name=model_name)			# just for saving the model
+			print(20*'*', 'End of training', 20*'*')
+			sys.exit()
 
 		'''
 		features_diff = features.iloc[ : , :feature_count].diff()
@@ -359,10 +392,6 @@ def main(argv):
 	print(f'Using a training set of {feature_count} features and {len(features)} rows.')
 	print(f'Using a test     set of {test_set_feature_count} features and {len(test_set_features)} rows.')
 
-	# Training parameters
-	batch_size = 16
-	epochs = 4000
-
 	'''
 	# build the common suffix for every output file in this run
 	base_name = datetime.now().strftime('%Y-%m-%d_%H.%M.%S') + '-feature_count-' + str(feature_count) + '-batch_size-' + str(batch_size) + '-epochs-' + str(epochs)
@@ -399,12 +428,15 @@ def main(argv):
 
 		print(20*'*', 'Start of training', 20*'*')
 		print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
-		model = Rnn(feature_count)
-		model.create_lgbm_model()
+		model = Rnn(feature_count, do_use_lgbm_model)
+		if do_use_lgbm_model:
+			model.create_lgbm_model()
 		x_train, y_train, x_valid, y_valid = model.fit(training_set, test_set,				# we also try to validate our model during training
 								batch_size=batch_size, epochs=epochs,		# only two params (except for the inner model structure)
 								model_name=model_name, scaled_features_name=scaled_features_name)	# these are just for saving
 		print(20*'*', 'End of training', 20*'*')
+		if do_use_lgbm_model:
+			model.plot_lgbm_feature_importance(training_set)
 		#model = load_model('/tmp/LANL-Earthquake-Prediction-train-csv-gzipped/earthquake-predictions-keras-model-2019-05-15_17.10.05-feature_count-225-batch_size-8-epochs-1000.hdf5')
 
 	print(20*'*', 'Start of prediction ', 20*'*')

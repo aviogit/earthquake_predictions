@@ -10,7 +10,10 @@ from sklearn.feature_selection import SelectFromModel
 
 from keras.models import Sequential
 
-from keras.layers import Dense, CuDNNGRU, Dropout, LSTM, Flatten, CuDNNLSTM
+from keras.layers.normalization import BatchNormalization
+from keras.layers.convolutional import Conv2D
+
+from keras.layers import Activation, CuDNNGRU, CuDNNLSTM, Dense, Dropout, Flatten, LSTM, MaxPooling1D, MaxPooling2D, TimeDistributed
 
 from keras.optimizers import adam
 from keras.optimizers import SGD
@@ -30,8 +33,11 @@ from IPython.display import SVG
 import keras.utils.vis_utils 
 from keras.utils.vis_utils import model_to_dot
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 class Rnn:
-	def __init__(self, num_features: int):
+	def __init__(self, num_features: int, do_use_lgbm_model=False):
 
 		# This block is due to this bug: https://github.com/keras-team/keras/issues/4161#issuecomment-366031228  #
 		config = tf.ConfigProto()
@@ -72,7 +78,7 @@ class Rnn:
 		self.history = None
 		self.do_logistic_regression	= False
 		self.do_rescale			= True						# Bring everything in the range [0, 1]
-		self.do_use_lgbm_model		= True
+		self.do_use_lgbm_model		= do_use_lgbm_model
 		#self.scaler = MinMaxScaler(feature_range=(0, self.num_features))		# This was not so wrooong... it's rather correct indeed!
 		self.scaler = MinMaxScaler(feature_range=(0, 1))
 
@@ -219,10 +225,55 @@ class Rnn:
 		x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set, scaled_features_name)
 		return x_train, y_train, x_valid, y_valid
 
-	def fit(self, training_set, validation_set, batch_size: int = 32, epochs: int = 20, model_name = '/tmp/keras_model.hdf5', scaled_features_name='/tmp/scaled_features.csv'):
 
-		#x_train, y_train, x_valid, y_valid = self._create_x_y_normalized_across_all_data(training_set, validation_set, scaled_features_name)
-		x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set, scaled_features_name)
+
+
+
+	def cnn_lstm_fit(self, X, y, batch_size: int = 32, epochs: int = 20, model_name = '/tmp/keras_model.hdf5'):
+
+		'''
+		print(X.shape)
+		X.reshape(2, int(X.shape[0]/2), X.shape[1], X.shape[2], 1)
+		print(X.shape)
+		'''
+
+		# checkpoint
+		filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{loss:.5f}.hdf5"
+		#checkpoint_vloss= ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+		checkpoint_loss	= ModelCheckpoint(filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
+		#earlystopping	= EarlyStopping(monitor='val_loss', patience=5, verbose=0, mode='auto', baseline=0.5) #, restore_best_weights=True)
+		#callbacks_list	= [checkpoint_vloss, earlystopping]
+
+		#reduce_lr_vloss	= ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10, min_lr=0.0001)
+		reduce_lr_loss	= ReduceLROnPlateau(monitor='loss',	factor=0.2, patience=10, min_lr=0.0001)
+
+		#callbacks_list	= [checkpoint_loss, checkpoint_vloss, reduce_lr_loss, reduce_lr_vloss]
+		callbacks_list	= [checkpoint_loss, reduce_lr_loss]
+
+		#self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
+		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), epochs=epochs, batch_size=batch_size)
+		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+
+		self.model.fit(X, y, callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+		print(f'Saving Keras model to: {model_name}')
+		self.model.save(model_name)
+
+		return X, y
+
+
+
+
+
+
+
+
+
+
+	def fit(self, training_set, validation_set, batch_size: int = 32, epochs: int = 20, model_name = '/tmp/keras_model.hdf5', scaled_features_name='/tmp/scaled_features.csv', create_x_y_dataset=True):
+
+		if create_x_y_dataset:
+			#x_train, y_train, x_valid, y_valid = self._create_x_y_normalized_across_all_data(training_set, validation_set, scaled_features_name)
+			x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set, scaled_features_name)
 
 		# checkpoint
 		filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{loss:.5f}-{val_loss:.5f}.hdf5"
@@ -271,12 +322,15 @@ class Rnn:
 		train_len = len(training_set.index)
 		valid_len = len(validation_set.index)
 
+		x_valid   = None
+		y_valid   = None
 
 		if self.do_rescale:
 			# Now we MaxMinScale (or StandardScale) the two separate datasets (train and test/validation set) because the two dataset have very different
 			# behavior and properties and it makes no sense to try to handle them as "an unique thing".
 			x_train_rescaled = self.scaler.fit_transform(training_set.iloc[:  , :self.num_features])
-			x_valid_rescaled = self.scaler.transform    (validation_set.iloc[:, :self.num_features])
+			if valid_len != 0:
+				x_valid_rescaled = self.scaler.transform    (validation_set.iloc[:, :self.num_features])
 			# Both x_train_rescaled and x_valid_rescaled are without their 'time_to_failure' column!
 
 			# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
@@ -284,8 +338,9 @@ class Rnn:
 			y_train = np.array(training_set.iloc[: , self.num_features])
 
 			# In a similar way, the validation set now is: the rescaled set, up to valid_len rows and up to total columns - 1 (the time_to_failure)
-			x_valid = np.array(x_valid_rescaled) 
-			y_valid = np.array(validation_set.iloc[:, self.num_features])
+			if valid_len != 0:
+				x_valid = np.array(x_valid_rescaled) 
+				y_valid = np.array(validation_set.iloc[:, self.num_features])
 		else:
 			# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
 			x_train = np.array(training_set.iloc[: , :self.num_features])
@@ -293,13 +348,16 @@ class Rnn:
 
 			# In a similar way, the validation set now is: the rescaled set, up to valid_len rows and up to total columns - 1 (the time_to_failure)
 			x_valid = np.array(validation_set.iloc[:, :self.num_features]) 
-			y_valid = np.array(validation_set.iloc[:,  self.num_features])
+			if valid_len != 0:
+				y_valid = np.array(validation_set.iloc[:,  self.num_features])
 
 		print(x_train.shape)
-		print(x_valid.shape)
+		if valid_len != 0:
+			print(x_valid.shape)
 
 		print(training_set.columns  [:self.num_features])
-		print(validation_set.columns[:self.num_features])
+		if valid_len != 0:
+			print(validation_set.columns[:self.num_features])
 
 
 		if self.do_logistic_regression:
@@ -343,13 +401,16 @@ class Rnn:
 		if not self.do_use_lgbm_model:
 			# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
 			x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
-			x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
+			if valid_len != 0:
+				x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
 
 		print(x_train.shape)
-		print(x_valid.shape)
+		if valid_len != 0:
+			print(x_valid.shape)
 
 		print(y_train.shape)
-		print(y_valid.shape)
+		if valid_len != 0:
+			print(y_valid.shape)
 
 		print(50*'-', 'Training set')
 		print(x_train[:10, :])
@@ -402,12 +463,16 @@ class Rnn:
 		return x_train, y_train, x_valid, y_valid
 
 	def create_lgbm_model(self):
-		params = {'num_leaves': 21,
-			'min_data_in_leaf': 20,
+		'''
+		params = {'num_leaves': 256,
+			'min_data_in_leaf': 500,
 			'objective':'regression',
-			'max_depth': 108,
+			'max_depth': 32,
+			'max_bin': 1024,
+			'num_iterations': 10240,
 			'learning_rate': 0.001,
-			"boosting": "gbdt",
+			#"boosting": "gbdt",
+			"boosting": "dart",
 			"feature_fraction": 0.91,
 			"bagging_freq": 1,
 			"bagging_fraction": 0.91,
@@ -416,57 +481,106 @@ class Rnn:
 			"lambda_l1": 0.1,
 			"verbosity": 4,
 			"random_state": 42}
+		'''
+		params = {'num_leaves': 21,
+			'min_data_in_leaf': 20,
+			'objective':'regression',
+			'learning_rate': 0.001,
+			'max_depth': 108,
+			"boosting": "gbdt",
+			"feature_fraction": 0.91,
+			"bagging_freq": 1,
+			"bagging_fraction": 0.91,
+			"bagging_seed": 42,
+			"metric": 'mae',
+			"lambda_l1": 0.1,
+			"verbosity": 10,
+			"random_state": 42}
+
 		self.model = lgb.LGBMRegressor(**params, n_estimators=60000, n_jobs=-1)
 
+	def plot_lgbm_feature_importance(self, training_set):
+		clf = self.model
+		X   = training_set
 
-	def create_convolutional_model(self):
+		# sorted(zip(clf.feature_importances_, X.columns), reverse=True)
+		feature_imp = pd.DataFrame(sorted(zip(clf.feature_importances_,X.columns)), columns=['Value','Feature'])
+		
+		plt.figure(figsize=(20, 10))
+		sns.barplot(x="Value", y="Feature", data=feature_imp.sort_values(by="Value", ascending=False))
+		plt.title('LightGBM Features (avg over folds)')
+		plt.tight_layout()
+		#plt.show()
+		plt.savefig('/tmp/lgbm_importances-01.png')
+
+	def create_convolutional_model(self, X):
 		self.model = Sequential()
 		
 		#1st conv layer
-		self.model.add(Conv2D(32, (4,10), padding="same",
-		                 input_shape=(X.shape[1],X.shape[2],X.shape[3]),data_format="channels_last"))
+		self.model.add(TimeDistributed(Conv2D(16, (7,7), padding="valid",
+		                 input_shape=(X.shape[1],X.shape[2],1),data_format="channels_last"), input_shape=(51, X.shape[1], X.shape[2], 1)))
+		self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
 		self.model.add(BatchNormalization())
 		self.model.add(Activation("relu"))
+		self.model.add(Dropout(0.25))
 		
 		#2nd conv layer
-		self.model.add(Conv2D(32, (4,10), padding="same"))
+		self.model.add(TimeDistributed(Conv2D(32, (3,3), padding="valid")))
+		self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
 		self.model.add(BatchNormalization())
 		self.model.add(Activation("relu"))
+		self.model.add(Dropout(0.25))
 		
 		#3rd conv layer
-		self.model.add(Conv2D(32, (4,10), padding="same"))
+		self.model.add(TimeDistributed(Conv2D(64, (3,3), padding="valid")))
+		self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
 		self.model.add(BatchNormalization())
 		self.model.add(Activation("relu"))
+		self.model.add(Dropout(0.25))
 		
 		#4th conv layer
-		self.model.add(Conv2D(32, (4,10), padding="same"))
+		self.model.add(TimeDistributed(Conv2D(128, (3,3), padding="valid")))
+		self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
 		self.model.add(BatchNormalization())
 		self.model.add(Activation("relu"))
-		self.model.add(MaxPooling2D())
+		self.model.add(Dropout(0.25))
+		#self.model.add(MaxPooling2D())
 		
-		self.model.add(Flatten())
-		
+		self.model.add(TimeDistributed(Flatten()))
+	
+		'''	
 		#FC1
 		self.model.add(Dense(128))
 		self.model.add(BatchNormalization())
 		self.model.add(Activation("relu"))
-		self.model.add(Dropout(0.3))
+		self.model.add(Dropout(0.25))
 		
 		#FC2
-		self.model.add(Dense(100,name ='feature_dense'))
-		self.model.load_weights(by_name=True,filepath = filepath)
+		#self.model.add(Dense(100,name ='feature_dense'))
+		self.model.add(Dense(128, name ='feature_dense'))
+		#self.model.load_weights(by_name=True,filepath = filepath)
 		self.model.add(BatchNormalization())
 		self.model.add(Activation("relu"))
 		
 		#output FC
 		self.model.add(Dense(2))
 		self.model.add(Activation('sigmoid'))
-		adam = optimizers.Adam(lr=0.01)
+		#adam = optimizers.Adam(lr=0.01)
+		'''
 		
-		self.model.compile(loss='binary_crossentropy', metrics=[auc], optimizer='adam')
-		self.model.summary()
+		#self.model.add(MaxPooling2D(pool_size=(16,16)))
+		#self.model.compile(loss='binary_crossentropy', metrics=[auc], optimizer='adam')
+		#self.model.add(Flatten())
 
-		plot_model(model, to_file='/tmp/cnn-model.png')
-		SVG(model_to_dot(model).create(prog='dot', format='svg'))
+		#self.model.add(CuDNNLSTM(128, input_shape=(self.num_features, 1)))
+		self.model.add(CuDNNLSTM(128))					# Best model so far...
+		self.model.add(Dense(64, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.0001), loss="mae")
+
+
+		self.model.summary()
+		plot_model(self.model, to_file='/tmp/cnn-model.png')
+		SVG(model_to_dot(self.model).create(prog='dot', format='svg'))
 
 

@@ -5,7 +5,15 @@ import matplotlib.pyplot as plt
 from matplotlib import style
 style.use('fivethirtyeight')
 
+import numpy as np
+
 import scipy.fftpack
+
+import os
+from os import listdir
+from os.path import isfile, join
+
+import cv2
 
 def plot_acoustic_signal_and_spectrum(df, chip_size, i, basedir, col = 'acoustic_data', for_humans = False):
 	counter = int(i / chip_size)
@@ -91,4 +99,35 @@ def plot_acoustic_spectrum(chip, counter, basedir, col = 'acoustic_data', for_hu
 	filename = basedir + '/lanl-acoustic-spectrum-{:06d}-ttf-{:02.5f}.png'.format(counter, chip.iloc[-1, -1])
 	plt.savefig(filename, dpi=300)
 	plt.close()
+
+
+def load_images(basedir, signal_or_spectrum='signal'):
+	filelist = [f for f in listdir(basedir) if isfile(join(basedir, f)) and signal_or_spectrum in join(basedir, f)]
+
+	dataset = []
+	labels  = []
+
+	for fname in filelist:
+		image   = cv2.imread(basedir + '/' + fname, cv2.IMREAD_GRAYSCALE)
+		#print(image[:100])
+		#print(image.shape)
+		image = np.array(image, dtype="float") / 255.0
+		#image.reshape(image.shape[0], image.shape[1], 1)
+		#print(image.shape)
+		#print(image[:100])
+		#print(image.shape)
+		dataset.append(image)
+		#fname   = f.split(os.path.sep)	# e.g. lanl-acoustic-spectrum-004183-ttf-10.16080.png
+		counter = fname[21:21+6]
+		ttf     = fname[32:-4]
+		print(f'Reading image: {counter} with time to failure: {ttf}')
+		labels.append(float(ttf))
+		if int(counter) > 100:
+			break
+
+	dataset = np.array(dataset)
+	labels  = np.array(labels)
+	print(f'Finished reading images, dataset has shape: {dataset.shape}')
+	return dataset, labels
+
 
