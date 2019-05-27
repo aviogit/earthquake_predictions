@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 import sys
+import os
 import gzip
 import io
 
@@ -173,17 +174,21 @@ def clean_ttf_floats(df):
 	df['time_to_failure'] = (df['time_to_failure'] * factor).astype(int) / factor
 
 
-def convolve_acoustic_data(training_set, segment_size, chip_size=4096, for_humans = False):
-	df = training_set
+def convolve_acoustic_data(df, df_name, segment_size, chip_size=4096, for_humans = False):
 	clean_ttf_floats(df)
+
+	basedir  = '/mnt/ros-data/datasets/LANL-Earthquake-Prediction/' + df_name + '-acoustic-graphs-for-conv2D-chip-size-' + str(chip_size)
+	if not os.path.exists(basedir):
+		print(f'Creating directory {basedir}')
+		os.mkdir(basedir, 0o755)
 
 	#Parallel(n_jobs=8*4, prefer='threads')(
 	Parallel(n_jobs=8, prefer='processes')(
-		delayed(plot_acoustic_signal_and_spectrum)(training_set, chip_size, i)
-		for i in range(0, len(training_set), chip_size))
+		delayed(plot_acoustic_signal_and_spectrum)(df, chip_size, i, basedir)
+		for i in range(0, len(df), chip_size))
 
 	'''
-	for i in range(0, len(training_set), chip_size):
+	for i in range(0, len(df), chip_size):
 		abs_counter = int(i / chip_size)
 		chip = df.iloc[i:i+chip_size, :]
 		print(chip)
@@ -195,8 +200,6 @@ def convolve_acoustic_data(training_set, segment_size, chip_size=4096, for_human
 		print(f'Graph no. {abs_counter}')
 		abs_counter += 1
 	'''
-		
-	sys.exit()
 	
 
 
@@ -242,6 +245,9 @@ def main(argv):
 	base_time = datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
 	do_differentiate_features_series	= False
 	do_drop_useless_features		= True
+	do_convolution_instead_of_manual_FE	= True
+	if do_convolution_instead_of_manual_FE:
+		chip_size = 150000
 
 	if len(argv) > 2:
 		print(f'Loading training set features from file: {argv[1]}')
@@ -293,35 +299,38 @@ def main(argv):
 		print(training_set.head())
 		print(training_set.describe())
 
-		do_convolution_instead_of_manual_FE = True
 		if do_convolution_instead_of_manual_FE:
-			convolve_acoustic_data(training_set, segment_size)
+			convolve_acoustic_data(training_set, 'training-set', segment_size, chip_size)
 		else:
 			print('Extracting features from the training set...')
 			features = get_stat_summaries(training_set, segment_size, do_fft=True, do_stft=True, run_parallel=True)
 
 			feature_count = len(features.columns)-1
 
-		# build the common suffix for every output file in this run
-		base_name = base_time + '-feature_count-' + str(feature_count)
+			# build the common suffix for every output file in this run
+			base_name = base_time + '-feature_count-' + str(feature_count)
 
-		'''
-		features.to_csv(base_dir + '/features-' + base_name + '.csv')
-		print('Features have been saved to:', base_dir + '/stat_summary.csv')
-		'''
-
-		# don't forget to save our features if we didn't loaded them before!
-		features_fname = base_dir + '/training-set-features-' + base_name + '.csv'
-		features.to_csv(features_fname)
-		print(f'Training set features have been saved to: {features_fname}')
-		# --------------------
-
+			'''
+			features.to_csv(base_dir + '/features-' + base_name + '.csv')
+			print('Features have been saved to:', base_dir + '/stat_summary.csv')
+			'''
+	
+			# don't forget to save our features if we didn't loaded them before!
+			features_fname = base_dir + '/training-set-features-' + base_name + '.csv'
+			features.to_csv(features_fname)
+			print(f'Training set features have been saved to: {features_fname}')
+			# --------------------
 
 
 
 		# Process test set
 		labeled_test_set       = create_labeled_test_set()
-		test_set_features      = get_stat_summaries(labeled_test_set, segment_size, do_fft=True, do_stft=True, run_parallel=True, include_y=True)
+
+		if do_convolution_instead_of_manual_FE:
+			convolve_acoustic_data(labeled_test_set, 'test-set', segment_size, chip_size)
+			sys.exit(0)
+		else:
+			test_set_features      = get_stat_summaries(labeled_test_set, segment_size, do_fft=True, do_stft=True, run_parallel=True, include_y=True)
 	
 		test_set_feature_count = len(test_set_features.columns)-1
 		print(test_set_features)
@@ -391,6 +400,7 @@ def main(argv):
 		print(20*'*', 'Start of training', 20*'*')
 		print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
 		model = Rnn(feature_count)
+		model.create_lgbm_model()
 		x_train, y_train, x_valid, y_valid = model.fit(training_set, test_set,				# we also try to validate our model during training
 								batch_size=batch_size, epochs=epochs,		# only two params (except for the inner model structure)
 								model_name=model_name, scaled_features_name=scaled_features_name)	# these are just for saving

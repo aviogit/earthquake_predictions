@@ -20,6 +20,8 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 
+import lightgbm as lgb
+
 
 # Plot CNN architecture
 import pydot
@@ -70,6 +72,7 @@ class Rnn:
 		self.history = None
 		self.do_logistic_regression	= False
 		self.do_rescale			= True						# Bring everything in the range [0, 1]
+		self.do_use_lgbm_model		= True
 		#self.scaler = MinMaxScaler(feature_range=(0, self.num_features))		# This was not so wrooong... it's rather correct indeed!
 		self.scaler = MinMaxScaler(feature_range=(0, 1))
 
@@ -231,13 +234,18 @@ class Rnn:
 		reduce_lr_vloss	= ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10, min_lr=0.0001)
 		reduce_lr_loss	= ReduceLROnPlateau(monitor='loss',	factor=0.2, patience=10, min_lr=0.0001)
 
-		callbacks_list	= [checkpoint_loss,checkpoint_vloss, reduce_lr_loss, reduce_lr_vloss]
+		#callbacks_list	= [checkpoint_loss, checkpoint_vloss, reduce_lr_loss, reduce_lr_vloss]
+		#callbacks_list	= [checkpoint_loss, reduce_lr_loss]
 
 		#self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
 		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), epochs=epochs, batch_size=batch_size)
-		self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
-		print(f'Saving Keras model to: {model_name}')
-		self.model.save(model_name)
+		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+		if self.do_use_lgbm_model:
+			self.model.fit(x_train, y_train, eval_set=(x_valid, y_valid), eval_metric='mae', verbose=1000, early_stopping_rounds=2000)
+		else:
+			self.model.fit(x_train, y_train, callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+			print(f'Saving Keras model to: {model_name}')
+			self.model.save(model_name)
 
 		return x_train, y_train, x_valid, y_valid
 
@@ -249,7 +257,9 @@ class Rnn:
 		scaled = x.reshape(-1, self.num_features)
 
 		x_test = np.array(scaled[:, :self.num_features])
-		x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
+		if not self.do_use_lgbm_model:
+			# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
+			x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
 
 		# time_to_failure was not scaled before! that's why we don't do self.scaler.inverse_transform() here! :)
 
@@ -330,9 +340,10 @@ class Rnn:
 
 			self.create_model(len(cols))
 
-		# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
-		x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
-		x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
+		if not self.do_use_lgbm_model:
+			# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
+			x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
+			x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
 
 		print(x_train.shape)
 		print(x_valid.shape)
@@ -340,7 +351,10 @@ class Rnn:
 		print(y_train.shape)
 		print(y_valid.shape)
 
+		print(50*'-', 'Training set')
+		print(x_train[:10, :])
 		print(y_train)
+		print(80*'-')
 
 		return x_train, y_train, x_valid, y_valid
 
@@ -386,6 +400,24 @@ class Rnn:
 		x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
 
 		return x_train, y_train, x_valid, y_valid
+
+	def create_lgbm_model(self):
+		params = {'num_leaves': 21,
+			'min_data_in_leaf': 20,
+			'objective':'regression',
+			'max_depth': 108,
+			'learning_rate': 0.001,
+			"boosting": "gbdt",
+			"feature_fraction": 0.91,
+			"bagging_freq": 1,
+			"bagging_fraction": 0.91,
+			"bagging_seed": 42,
+			"metric": 'mae',
+			"lambda_l1": 0.1,
+			"verbosity": 4,
+			"random_state": 42}
+		self.model = lgb.LGBMRegressor(**params, n_estimators=60000, n_jobs=-1)
+
 
 	def create_convolutional_model(self):
 		self.model = Sequential()

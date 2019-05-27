@@ -7,15 +7,16 @@ style.use('fivethirtyeight')
 
 import scipy.fftpack
 
-def plot_acoustic_signal_and_spectrum(df, chip_size, i , col = 'acoustic_data', for_humans = False):
+def plot_acoustic_signal_and_spectrum(df, chip_size, i, basedir, col = 'acoustic_data', for_humans = False):
 	counter = int(i / chip_size)
 	chip = df.iloc[i:i+chip_size, :]
 
 	#print(chip)
 	print(i, len(chip))
 
-	plot_acoustic_signal(chip, counter, col, for_humans)
-	plot_acoustic_spectrum(chip, counter, col, for_humans)
+	#basedir  = '/mnt/ros-data/datasets/LANL-Earthquake-Prediction/acoustic-graphs-for-conv2D-chip-size-' + str(len(chip.index))
+	plot_acoustic_signal	(chip, counter, basedir, col, for_humans)
+	plot_acoustic_spectrum	(chip, counter, basedir, col, for_humans)
 
 	print(f'Created graph no. {counter} of {int(len(df.index)/chip_size)}')
 
@@ -39,7 +40,7 @@ def plot_acoustic_signal_and_spectrum(df, chip_size, i , col = 'acoustic_data', 
 		abs_counter += 1
 	'''
 
-def plot_acoustic_signal(chip, counter, col = 'acoustic_data', for_humans = False):
+def plot_acoustic_signal(chip, counter, basedir, col = 'acoustic_data', for_humans = False):
 	#ax = plt.gca()
 	ax = plt.axes()
 
@@ -61,12 +62,11 @@ def plot_acoustic_signal(chip, counter, col = 'acoustic_data', for_humans = Fals
 		chip.iloc[ : , -1].plot(kind='line', lw=1, ax=ax, sharex=True)
 		mng = plt.get_current_fig_manager()
 		mng.resize(*mng.window.maxsize())
-	basedir  = '/mnt/ros-data/datasets/LANL-Earthquake-Prediction/acoustic-graphs-for-conv2D'
-	filename = basedir + '/lanl-acoustic-signal-{:06d}.png'.format(counter)
+	filename = basedir + '/lanl-acoustic-signal-{:06d}-ttf-{:02.5f}.png'.format(counter, chip.iloc[-1, -1])
 	plt.savefig(filename, dpi=300)
 	plt.close()
 
-def plot_acoustic_spectrum(chip, counter, col = 'acoustic_data', for_humans = False):
+def plot_acoustic_spectrum(chip, counter, basedir, col = 'acoustic_data', for_humans = False):
 	#ax = plt.gca()
 	ax = plt.axes()
 
@@ -88,8 +88,7 @@ def plot_acoustic_spectrum(chip, counter, col = 'acoustic_data', for_humans = Fa
 	if for_humans:
 		mng = plt.get_current_fig_manager()
 		mng.resize(*mng.window.maxsize())
-	basedir  = '/mnt/ros-data/datasets/LANL-Earthquake-Prediction/acoustic-graphs-for-conv2D'
-	filename = basedir + '/lanl-acoustic-spectrum-{:06d}.png'.format(counter)
+	filename = basedir + '/lanl-acoustic-spectrum-{:06d}-ttf-{:02.5f}.png'.format(counter, chip.iloc[-1, -1])
 	plt.savefig(filename, dpi=300)
 	plt.close()
 
