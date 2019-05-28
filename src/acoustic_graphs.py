@@ -107,8 +107,10 @@ def load_images(basedir, signal_or_spectrum='signal'):
 	dataset = []
 	labels  = []
 
+	filelist.sort()
 	for fname in filelist:
 		image   = cv2.imread(basedir + '/' + fname, cv2.IMREAD_GRAYSCALE)
+		image   = cv2.resize(image, (int(image.shape[0]/4), int(image.shape[1]/4)))
 		#print(image[:100])
 		#print(image.shape)
 		image = np.array(image, dtype="float") / 255.0
@@ -120,10 +122,12 @@ def load_images(basedir, signal_or_spectrum='signal'):
 		#fname   = f.split(os.path.sep)	# e.g. lanl-acoustic-spectrum-004183-ttf-10.16080.png
 		counter = fname[21:21+6]
 		ttf     = fname[32:-4]
-		print(f'Reading image: {counter} with time to failure: {ttf}')
+		print(f'Reading {signal_or_spectrum} image: {counter} with time to failure: {ttf}')
 		labels.append(float(ttf))
-		if int(counter) > 100:
+		'''
+		if int(counter) >= 99:
 			break
+		'''
 
 	dataset = np.array(dataset)
 	labels  = np.array(labels)

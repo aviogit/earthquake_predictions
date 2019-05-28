@@ -248,11 +248,13 @@ def main(argv):
 	do_drop_useless_features		= True
 	do_convolution_instead_of_manual_FE	= True
 	do_use_lgbm_model			= True
+	do_use_timedistributed			= False
+	do_use_convlstm				= True
 	if do_convolution_instead_of_manual_FE:
 		chip_size = 150000
 
 	# Training parameters
-	batch_size = 16
+	batch_size = 4
 	epochs = 4000
 
 	if len(argv) > 2:
@@ -286,19 +288,38 @@ def main(argv):
 			print(f'Loaded {len(training_set)} images with {len(labels)} labels.')
 			print(f'Training set has shape', training_set.shape)
 			feature_count = 10	# bogus value
-			model = Rnn(feature_count, do_use_lgbm_model)
-			model.create_convolutional_model(training_set)
+			model = Rnn(feature_count, do_use_lgbm_model, do_use_timedistributed)
+			#model.create_convolutional_model(training_set)
+			model.create_conv_lstm_model(training_set)
 			print(20*'*', 'Start of training', 20*'*')
 			#print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
 
 			model_name           = base_dir + '/earthquake-predictions-CNN-LSTM-keras-model-'     + base_time + '.hdf5'
 
-			print(training_set.shape)
-			training_set = training_set.reshape(2, int(training_set.shape[0]/2), training_set.shape[1], training_set.shape[2], 1)
-			print(training_set.shape)
-			print(labels.shape)
-			labels = labels.reshape            (2, int(labels.shape[0]/2))
-			print(labels.shape)
+			if do_use_timedistributed or do_use_convlstm:
+				# Here we reshape the (for the moment) 102 images
+				# in 2 samples of 51 image series each
+				# After several hours of trial and error,
+				# I discovered that also the input (and thus the
+				# last Dense layer) will have shape (?, 51)
+				# At least, this is the only thing that makes
+				# sense right now...
+
+				# looking at this post:
+				# https://stackoverflow.com/questions/49432852/estimating-high-resolution-images-from-lower-ones-using-a-keras-model-based-on-c/49468183#49468183
+				# the 5 dimensions needed by ConvLSTM2D layers are:
+				# (samples, time, rows, cols, channels)
+
+				time_grouping = 5
+				n_samples = int(training_set.shape[0] / time_grouping)
+
+				print(training_set.shape)
+				training_set = training_set.reshape(n_samples, time_grouping, training_set.shape[1], training_set.shape[2], 1)
+				print(training_set.shape)
+				print(labels.shape)
+				labels = labels.reshape            (n_samples, time_grouping)
+				print(labels.shape)
+
 			model.cnn_lstm_fit(training_set, labels,
 						batch_size=batch_size, epochs=epochs,	# only two params (except for the inner model structure)
 						model_name=model_name)			# just for saving the model

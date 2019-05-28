@@ -1,6 +1,8 @@
 import sys
 from datetime import datetime
 
+import re
+
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
@@ -11,9 +13,10 @@ from sklearn.feature_selection import SelectFromModel
 from keras.models import Sequential
 
 from keras.layers.normalization import BatchNormalization
-from keras.layers.convolutional import Conv2D
+from keras.layers.convolutional import Conv2D, Conv3D
+from keras.layers.convolutional_recurrent import ConvLSTM2D
 
-from keras.layers import Activation, CuDNNGRU, CuDNNLSTM, Dense, Dropout, Flatten, LSTM, MaxPooling1D, MaxPooling2D, TimeDistributed
+from keras.layers import Activation, AveragePooling3D, CuDNNGRU, CuDNNLSTM, Dense, Dropout, Flatten, Lambda, LSTM, MaxPooling1D, MaxPooling2D, Reshape, TimeDistributed
 
 from keras.optimizers import adam
 from keras.optimizers import SGD
@@ -36,8 +39,16 @@ from keras.utils.vis_utils import model_to_dot
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+def print_tensor_shape(x, string=''):
+	print(string, x.shape)
+	return x
+def add_lambda_print(model, name, debug=False):
+	if debug:
+		layer_name = re.sub(r' ', '_', name)
+		model.add(Lambda(print_tensor_shape, name=layer_name, arguments={'string':name}))
+
 class Rnn:
-	def __init__(self, num_features: int, do_use_lgbm_model=False):
+	def __init__(self, num_features: int, do_use_lgbm_model=False, do_use_timedistributed=False):
 
 		# This block is due to this bug: https://github.com/keras-team/keras/issues/4161#issuecomment-366031228  #
 		config = tf.ConfigProto()
@@ -79,6 +90,7 @@ class Rnn:
 		self.do_logistic_regression	= False
 		self.do_rescale			= True						# Bring everything in the range [0, 1]
 		self.do_use_lgbm_model		= do_use_lgbm_model
+		self.do_use_timedistributed	= do_use_timedistributed
 		#self.scaler = MinMaxScaler(feature_range=(0, self.num_features))		# This was not so wrooong... it's rather correct indeed!
 		self.scaler = MinMaxScaler(feature_range=(0, 1))
 
@@ -516,37 +528,70 @@ class Rnn:
 	def create_convolutional_model(self, X):
 		self.model = Sequential()
 		
-		#1st conv layer
-		self.model.add(TimeDistributed(Conv2D(16, (7,7), padding="valid",
-		                 input_shape=(X.shape[1],X.shape[2],1),data_format="channels_last"), input_shape=(51, X.shape[1], X.shape[2], 1)))
-		self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
-		self.model.add(BatchNormalization())
-		self.model.add(Activation("relu"))
-		self.model.add(Dropout(0.25))
-		
-		#2nd conv layer
-		self.model.add(TimeDistributed(Conv2D(32, (3,3), padding="valid")))
-		self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
-		self.model.add(BatchNormalization())
-		self.model.add(Activation("relu"))
-		self.model.add(Dropout(0.25))
-		
-		#3rd conv layer
-		self.model.add(TimeDistributed(Conv2D(64, (3,3), padding="valid")))
-		self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
-		self.model.add(BatchNormalization())
-		self.model.add(Activation("relu"))
-		self.model.add(Dropout(0.25))
-		
-		#4th conv layer
-		self.model.add(TimeDistributed(Conv2D(128, (3,3), padding="valid")))
-		self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
-		self.model.add(BatchNormalization())
-		self.model.add(Activation("relu"))
-		self.model.add(Dropout(0.25))
-		#self.model.add(MaxPooling2D())
-		
-		self.model.add(TimeDistributed(Flatten()))
+		if self.do_use_timedistributed:
+			#1st conv layer
+			self.model.add(TimeDistributed(Conv2D(16, (7,7), padding="valid",
+						input_shape=(X.shape[1],X.shape[2],1),data_format="channels_last",
+						name ='conv_2d_layer_1'),
+					input_shape=(51, X.shape[1], X.shape[2], 1)))
+			self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
+			self.model.add(BatchNormalization())
+			self.model.add(Activation("relu"))
+			self.model.add(Dropout(0.25))
+			
+			#2nd conv layer
+			self.model.add(TimeDistributed(Conv2D(32, (3,3), padding="valid", name ='conv_2d_layer_2')))
+			self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
+			self.model.add(BatchNormalization())
+			self.model.add(Activation("relu"))
+			self.model.add(Dropout(0.25))
+			
+			#3rd conv layer
+			self.model.add(TimeDistributed(Conv2D(64, (3,3), padding="valid", name ='conv_2d_layer_3')))
+			self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
+			self.model.add(BatchNormalization())
+			self.model.add(Activation("relu"))
+			self.model.add(Dropout(0.25))
+			
+			#4th conv layer
+			self.model.add(TimeDistributed(Conv2D(128, (3,3), padding="valid", name ='conv_2d_layer_4')))
+			self.model.add(TimeDistributed(MaxPooling2D(pool_size=(2, 2))))
+			self.model.add(BatchNormalization())
+			self.model.add(Activation("relu"))
+			self.model.add(Dropout(0.25))
+			#self.model.add(MaxPooling2D())
+		else:
+			#1st conv layer
+			self.model.add(Conv2D(16, (7,7), padding="valid",
+						input_shape=(X.shape[1],X.shape[2],1),data_format="channels_last",
+						name ='conv_2d_layer_1'))
+			self.model.add(MaxPooling2D(pool_size=(2, 2)))
+			self.model.add(BatchNormalization())
+			self.model.add(Activation("relu"))
+			self.model.add(Dropout(0.25))
+			
+			#2nd conv layer
+			self.model.add(Conv2D(32, (3,3), padding="valid", name ='conv_2d_layer_2'))
+			self.model.add(MaxPooling2D(pool_size=(2, 2)))
+			self.model.add(BatchNormalization())
+			self.model.add(Activation("relu"))
+			self.model.add(Dropout(0.25))
+			
+			#3rd conv layer
+			self.model.add(Conv2D(64, (3,3), padding="valid", name ='conv_2d_layer_3'))
+			self.model.add(MaxPooling2D(pool_size=(2, 2)))
+			self.model.add(BatchNormalization())
+			self.model.add(Activation("relu"))
+			self.model.add(Dropout(0.25))
+			
+			#4th conv layer
+			self.model.add(Conv2D(128, (3,3), padding="valid", name ='conv_2d_layer_4'))
+			self.model.add(MaxPooling2D(pool_size=(2, 2)))
+			self.model.add(BatchNormalization())
+			self.model.add(Activation("relu"))
+			self.model.add(Dropout(0.25))
+			#self.model.add(MaxPooling2D())
+			
 	
 		'''	
 		#FC1
@@ -568,19 +613,138 @@ class Rnn:
 		#adam = optimizers.Adam(lr=0.01)
 		'''
 		
-		#self.model.add(MaxPooling2D(pool_size=(16,16)))
-		#self.model.compile(loss='binary_crossentropy', metrics=[auc], optimizer='adam')
-		#self.model.add(Flatten())
+		if self.do_use_timedistributed:
+			self.model.add(TimeDistributed(Flatten()))
+			#self.model.add(MaxPooling2D(pool_size=(16,16)))
+			#self.model.compile(loss='binary_crossentropy', metrics=[auc], optimizer='adam')
+			#self.model.add(Flatten())
+	
+			#self.model.add(CuDNNLSTM(128, input_shape=(self.num_features, 1)))
+			self.model.add(CuDNNLSTM(128, input_shape=(12, 51), name ='lstm_layer_1', return_sequences=False))	# Best model so far...
+			self.model.add(Dense(64, activation='relu', name ='dense_layer_1'))
+			self.model.add(Dense(1, name ='output_layer_antani'))
+		else:
+			#self.model.add(MaxPooling1D(pool_size=2,strides=None, padding='valid',input_shape=(50,1)))
+			#self.model.add(MaxPooling2D(pool_size=(2, 2)))
+			#self.model.add(Flatten())
+			#self.model.add(MaxPooling2D(pool_size=(16,16)))
+			#self.model.compile(loss='binary_crossentropy', metrics=[auc], optimizer='adam')
+			#self.model.add(Flatten())
+	
+			#self.model.add(CuDNNLSTM(128, input_shape=(self.num_features, 1)))
+			self.model.add(CuDNNLSTM(128, input_shape=([12]), name ='lstm_layer_1', return_sequences=False))	# Best model so far...
+			self.model.add(Dense(64, activation='relu', name ='dense_layer_1'))
+			self.model.add(Dense(1, name ='output_layer_antani'))
 
-		#self.model.add(CuDNNLSTM(128, input_shape=(self.num_features, 1)))
-		self.model.add(CuDNNLSTM(128))					# Best model so far...
-		self.model.add(Dense(64, activation='relu'))
-		self.model.add(Dense(1))
+
 		self.model.compile(optimizer=adam(lr=0.0001), loss="mae")
-
 
 		self.model.summary()
 		plot_model(self.model, to_file='/tmp/cnn-model.png')
 		SVG(model_to_dot(self.model).create(prog='dot', format='svg'))
 
 
+	def create_conv_lstm_model(self, X, time_grouping=5):
+		'''
+		# We create a layer which take as input movies of shape
+		# (n_frames, width, height, channels) and returns a movie
+		# of identical shape.
+		
+		seq = Sequential()
+		seq.add(ConvLSTM2D(filters=40, kernel_size=(3, 3),
+		                   input_shape=(None, 40, 40, 1),
+		                   padding='same', return_sequences=True))
+		seq.add(BatchNormalization())
+		
+		seq.add(ConvLSTM2D(filters=40, kernel_size=(3, 3),
+		                   padding='same', return_sequences=True))
+		seq.add(BatchNormalization())
+		
+		seq.add(ConvLSTM2D(filters=40, kernel_size=(3, 3),
+		                   padding='same', return_sequences=True))
+		seq.add(BatchNormalization())
+		
+		seq.add(ConvLSTM2D(filters=40, kernel_size=(3, 3),
+		                   padding='same', return_sequences=True))
+		seq.add(BatchNormalization())
+		
+		seq.add(Conv3D(filters=1, kernel_size=(3, 3, 3),
+		               activation='sigmoid',
+		               padding='same', data_format='channels_last'))
+		seq.compile(loss='binary_crossentropy', optimizer='adadelta')
+		'''
+
+		print(f'Creating ConvLSTM2D model for input shape: {X.shape}')
+		debug = True
+
+		# looking at this post:
+		# https://stackoverflow.com/questions/49432852/estimating-high-resolution-images-from-lower-ones-using-a-keras-model-based-on-c/49468183#49468183
+		# the 5 dimensions needed by ConvLSTM2D layers are:
+		# (samples, time, rows, cols, channels)
+
+
+		# If going OOM, whatch out for both the number of filters
+		# applied to the first convolutional layer and the batch_size
+		# 2019-05-28 16:24:58.805472: W tensorflow/core/framework/op_kernel.cc:1401] OP_REQUIRES failed at conv_ops.cc:446 : Resource exhausted: OOM when allocating tensor with shape[16,16,1440,1920] and type float on /job:localhost/replica:0/task:0/device:GPU:0 by allocator GPU_0_bfc
+
+
+		n_samples = int(X.shape[0] / time_grouping)	# ah-ah! unused!
+		n_filters = 4
+
+		self.model = Sequential()
+		self.model.add(ConvLSTM2D(filters=n_filters, kernel_size=(7, 7),
+		                   #input_shape=(None, 40, 40, 1),
+		                   input_shape=(time_grouping, X.shape[1], X.shape[2], 1),
+		                   padding='same', return_sequences=True))
+		add_lambda_print(self.model, 'ConvLSTM2D-1', debug)
+		self.model.add(BatchNormalization())
+		
+		self.model.add(ConvLSTM2D(filters=n_filters, kernel_size=(3, 3),
+				padding='same', return_sequences=True))
+		add_lambda_print(self.model, 'ConvLSTM2D-2', debug)
+		self.model.add(BatchNormalization())
+		
+		self.model.add(ConvLSTM2D(filters=n_filters, kernel_size=(3, 3),
+				padding='same', return_sequences=True))
+		add_lambda_print(self.model, 'ConvLSTM2D-3', debug)
+		self.model.add(BatchNormalization())
+		
+		self.model.add(ConvLSTM2D(filters=n_filters, kernel_size=(3, 3),
+				padding='same', return_sequences=True))
+		add_lambda_print(self.model, 'ConvLSTM2D-4', debug)
+		self.model.add(BatchNormalization())
+		
+		self.model.add(Conv3D(filters=1, kernel_size=(3, 3, 3),
+				activation='sigmoid',
+				padding='same', data_format='channels_last'))
+		add_lambda_print(self.model, 'Conv3D', debug)
+
+		self.model.add(AveragePooling3D((1, X.shape[1], X.shape[2])))
+		add_lambda_print(self.model, 'AveragePooling3D', debug)
+		self.model.add(Reshape((-1, time_grouping)))
+		add_lambda_print(self.model, 'Reshape', debug)
+		self.model.add(Flatten())
+		add_lambda_print(self.model, 'Flatten', debug)
+		self.model.add(Dense(time_grouping, name ='dense_layer_wide', activation='linear'))
+		add_lambda_print(self.model, 'Dense Wide', debug)
+#		self.model.add(Dense(1, name ='dense_layer_1', activation='linear'))
+#		add_lambda_print(self.model, 'Dense 1', debug)
+
+
+
+		'''
+		self.model.add(Dense(
+			units=1,
+			name ='dense_layer_1',
+			activation='sigmoid'))
+		'''
+
+
+		#self.model.add(Dense(64, activation='relu', name ='dense_layer_1'))
+		#self.model.add(Dense(1, name ='output_layer_antani'))
+
+		self.model.compile(optimizer=adam(lr=0.0001), loss="mae")
+
+		self.model.summary()
+		plot_model(self.model, to_file='/tmp/cnn-model.png')
+		SVG(model_to_dot(self.model).create(prog='dot', format='svg'))
