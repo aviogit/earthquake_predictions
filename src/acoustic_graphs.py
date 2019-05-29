@@ -124,10 +124,10 @@ def load_images(basedir, signal_or_spectrum='signal'):
 		ttf     = fname[32:-4]
 		print(f'Reading {signal_or_spectrum} image: {counter} with time to failure: {ttf}')
 		labels.append(float(ttf))
-		'''
+#		'''
 		if int(counter) >= 99:
 			break
-		'''
+#		'''
 
 	dataset = np.array(dataset)
 	labels  = np.array(labels)

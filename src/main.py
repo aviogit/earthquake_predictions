@@ -282,48 +282,92 @@ def main(argv):
 				differentiate_features_series(features,          feature_count,          '/tmp/features')
 				differentiate_features_series(test_set_features, test_set_feature_count, '/tmp/test_set_features')
 		else:
-			training_set_dir= argv[1] # /mnt/ros-data/datasets/LANL-Earthquake-Prediction/training-set-acoustic-graphs-for-conv2D...
-			test_set_dir	= argv[2] # /mnt/ros-data/datasets/LANL-Earthquake-Prediction/training-set-acoustic-graphs-for-conv2D...
-			training_set, labels = load_images(training_set_dir)
-			print(f'Loaded {len(training_set)} images with {len(labels)} labels.')
-			print(f'Training set has shape', training_set.shape)
-			feature_count = 10	# bogus value
-			model = Rnn(feature_count, do_use_lgbm_model, do_use_timedistributed)
-			#model.create_convolutional_model(training_set)
-			model.create_conv_lstm_model(training_set)
-			print(20*'*', 'Start of training', 20*'*')
-			#print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
+			training_set_dir	= argv[1] # /mnt/ros-data/datasets/LANL-Earthquake-Prediction/training-set-acoustic-graphs-for-conv2D...
+			test_set_dir		= argv[2] # /mnt/ros-data/datasets/LANL-Earthquake-Prediction/training-set-acoustic-graphs-for-conv2D...
 
-			model_name           = base_dir + '/earthquake-predictions-CNN-LSTM-keras-model-'     + base_time + '.hdf5'
+			if len(argv) >= 2:
+				do_load_model	= True
+				model_name	= argv[3]
+
+			if not do_load_model:
+				training_set, labels = load_images(training_set_dir)
+				print(f'Loaded {len(training_set)} images with {len(labels)} labels.')
+				print(f'Training set has shape', training_set.shape)
+
+				feature_count = 10	# bogus value
+				model = Rnn(feature_count, do_use_lgbm_model, do_use_timedistributed)
+				#model.create_convolutional_model(training_set)
+				model.create_conv_lstm_model(training_set)
+
+				if do_use_timedistributed or do_use_convlstm:
+					# Here we reshape the (for the moment) 102 images
+					# in 2 samples of 51 image series each
+					# After several hours of trial and error,
+					# I discovered that also the input (and thus the
+					# last Dense layer) will have shape (?, 51)
+					# At least, this is the only thing that makes
+					# sense right now...
+	
+					# looking at this post:
+					# https://stackoverflow.com/questions/49432852/estimating-high-resolution-images-from-lower-ones-using-a-keras-model-based-on-c/49468183#49468183
+					# the 5 dimensions needed by ConvLSTM2D layers are:
+					# (samples, time, rows, cols, channels)
+	
+					time_grouping = 5
+					n_samples = int(training_set.shape[0] / time_grouping)
+	
+					print(training_set.shape)
+					training_set = training_set.reshape(n_samples, time_grouping, training_set.shape[1], training_set.shape[2], 1)
+					print(training_set.shape)
+					print(labels.shape)
+					labels = labels.reshape            (n_samples, time_grouping)
+					print(labels.shape)
+
+			if not do_load_model:
+				print(20*'*', 'Start of training', 20*'*')
+				model_name           = base_dir + '/earthquake-predictions-CNN-LSTM-keras-model-'     + base_time + '.hdf5'
+				model.cnn_lstm_fit(training_set, labels,
+						batch_size=batch_size, epochs=epochs,	# only two params (except for the inner model structure)
+						model_name=model_name)			# just for saving the model
+				print(20*'*', 'End of training', 20*'*')
+			else:
+				feature_count = 10	# bogus value
+				model = Rnn(feature_count, do_use_lgbm_model, do_use_timedistributed)
+				print(20*'*', 'Loading pre-trained Keras model', 20*'*')
+				print(20*'*', 'Keras model will be loaded from:', model_name, 20*'*')
+				model = load_model(model_name)
+				model.summary()
+				print(20*'*', 'End of loading', 20*'*')
+
+
+			# Here we just have "tentative labels", useful for "validation cheating"
+			# or trying to compute MAE on the fly...
+			test_set, labels = load_images(test_set_dir)
+			print(f'Loaded {len(test_set)} images with {len(labels)} labels.')
+			print(f'Training set has shape', test_set.shape)
 
 			if do_use_timedistributed or do_use_convlstm:
-				# Here we reshape the (for the moment) 102 images
-				# in 2 samples of 51 image series each
-				# After several hours of trial and error,
-				# I discovered that also the input (and thus the
-				# last Dense layer) will have shape (?, 51)
-				# At least, this is the only thing that makes
-				# sense right now...
-
-				# looking at this post:
-				# https://stackoverflow.com/questions/49432852/estimating-high-resolution-images-from-lower-ones-using-a-keras-model-based-on-c/49468183#49468183
-				# the 5 dimensions needed by ConvLSTM2D layers are:
-				# (samples, time, rows, cols, channels)
-
 				time_grouping = 5
-				n_samples = int(training_set.shape[0] / time_grouping)
+				n_samples = int(test_set.shape[0] / time_grouping)
 
-				print(training_set.shape)
-				training_set = training_set.reshape(n_samples, time_grouping, training_set.shape[1], training_set.shape[2], 1)
-				print(training_set.shape)
+				print(test_set.shape)
+				test_set = test_set.reshape(n_samples, time_grouping, test_set.shape[1], test_set.shape[2], 1)
+				print(test_set.shape)
 				print(labels.shape)
 				labels = labels.reshape            (n_samples, time_grouping)
 				print(labels.shape)
 
-			model.cnn_lstm_fit(training_set, labels,
-						batch_size=batch_size, epochs=epochs,	# only two params (except for the inner model structure)
-						model_name=model_name)			# just for saving the model
-			print(20*'*', 'End of training', 20*'*')
+			predictions = model.predict(test_set)
+			print(20*'*', 'Start of prediction ', 20*'*')
+			#predict_single_on_scaled_features(model, test_set, base_time)
+			'''
+			for i in range(len(test_set[0])):
+				prediction = model.predict(test_set[i])
+			'''
+			prediction = model.predict(test_set)
+			print(prediction)
+			print(20*'*', 'End of prediction ', 20*'*')
+
 			sys.exit()
 
 		'''
@@ -441,7 +485,7 @@ def main(argv):
 		print(20*'*', 'Keras model will be loaded from:', model_name, 20*'*')
 		model = load_model(model_name)
 		print(20*'*', 'End of loading', 20*'*')
-		print(model.summary())
+		model.summary()
 
 	else:
 		model_name           = base_dir + '/earthquake-predictions-keras-model-'     + base_name + '.hdf5'
