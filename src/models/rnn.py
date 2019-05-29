@@ -48,61 +48,113 @@ def add_lambda_print(model, name, debug=False):
 		model.add(Lambda(print_tensor_shape, name=layer_name, arguments={'string':name}))
 
 class Rnn:
-	def __init__(self, num_features: int, do_use_lgbm_model=False, do_use_timedistributed=False):
+	def __init__(self, config, num_features=None):
+
+		self.config = config
 
 		# This block is due to this bug: https://github.com/keras-team/keras/issues/4161#issuecomment-366031228  #
-		config = tf.ConfigProto()
-		config.gpu_options.allow_growth = True	# dynamically grow the memory used on the GPU
-		#config.log_device_placement = True	# to log device placement (on which device the operation ran)
-						# (nothing gets printed in Jupyter, only if you run it standalone)
-		sess = tf.Session(config=config)
-		set_session(sess)			# set this TensorFlow session as the default session for Keras
-		##########################################################################################################
-		'''
-		2019-05-09 11:45:36.221069: E tensorflow/stream_executor/cuda/cuda_dnn.cc:334] Could not create cudnn handle: CUDNN_STATUS_INTERNAL_ERROR
-		2019-05-09 11:45:36.221240: W tensorflow/core/framework/op_kernel.cc:1401] OP_REQUIRES failed at cudnn_rnn_ops.cc:1217 : Unknown: Fail to find the dnn implementation.
-		Traceback (most recent call last):
-		  File "./main.py", line 64, in <module>
-			main()
-		  File "./main.py", line 58, in main
-			model.fit(training_set, batch_size=32, epochs=500)
-		  File "/mnt/dropbox/dropbox/Dropbox/code/python/ml-tutorials-py/LANL-Earthquake-Prediction/earthquake_predictions/src/models/rnn.py", line 33, in fit
-			self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
-		  File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/keras/engine/training.py", line 1039, in fit
-			validation_steps=validation_steps)
-		  File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/keras/engine/training_arrays.py", line 199, in fit_loop
-			outs = f(ins_batch)
-		  File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/keras/backend/tensorflow_backend.py", line 2715, in __call__
-			return self._call(inputs)
-		  File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/keras/backend/tensorflow_backend.py", line 2675, in _call
-			fetched = self._callable_fn(*array_vals)
-		  File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/tensorflow/python/client/session.py", line 1439, in __call__
-			run_metadata_ptr)
-		  File "/mnt/ros-data/venvs/ml-tutorials/lib/python3.6/site-packages/tensorflow/python/framework/errors_impl.py", line 528, in __exit__
-			c_api.TF_GetCode(self.status.status))
-		tensorflow.python.framework.errors_impl.UnknownError: Fail to find the dnn implementation.
-			 [[{{node cu_dnnlstm_1/CudnnRNN}}]]
-			 [[{{node loss/mul}}]]
-		'''
-		##########################################################################################################
+		tf_config = tf.ConfigProto()
+		tf_config.gpu_options.allow_growth = True	# dynamically grow the memory used on the GPU
+		#tf_config.log_device_placement = True		# to log device placement (on which device the operation ran)
+								# (nothing gets printed in Jupyter, only if you run it standalone)
+		sess = tf.Session(config=tf_config)
+		set_session(sess)				# set this TensorFlow session as the default session for Keras
 
 		self.history = None
-		self.do_logistic_regression	= False
-		self.do_rescale			= True						# Bring everything in the range [0, 1]
-		self.do_use_lgbm_model		= do_use_lgbm_model
-		self.do_use_timedistributed	= do_use_timedistributed
-		#self.scaler = MinMaxScaler(feature_range=(0, self.num_features))		# This was not so wrooong... it's rather correct indeed!
+		#self.scaler = MinMaxScaler(feature_range=(0, self.num_features))	# This looked wrong initially, but it performs mostly ok
 		self.scaler = MinMaxScaler(feature_range=(0, 1))
 
-		self.create_model(num_features)
+		self.num_features = num_features
+
+		if self.config.model == 'lstm-128':
+			self.create_model_lstm_128(num_features)
+		if self.config.model == 'lstm-512':
+			self.create_model_lstm_512(num_features)
+		if self.config.model == 'gru':
+			self.create_model_gru(num_features)
+		if self.config.model == 'lgbm':
+			self.create_model_lgbm()
 		
+
+	def create_model_lstm_128(self, num_features: int):
+		print(f'Creating a new LSTM model with {self.num_features} features and 128 neurons as input layer...')
+
+		# Modified original model! This one works better!
+		# Ok this worked slightly better! 151 features, normalized data, batch=32, 2000 epochs and now I get 1.554!
+
+		# Ok, this one worked well, but it still overfits too early (around 1000 epochs, maybe it has just too many neurons?)
+
+		# Used this one again with validation set with TTF values obtained from best submission (second-submissions-avg.csv)
+		# The model was so fit for validation set that the public score has been the same as second-submissions-avg.csv :D:D:D
+		self.model = Sequential()
+		self.model.add(CuDNNLSTM(128, input_shape=(self.num_features, 1)))
+		self.model.add(Dense(64, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.0001), loss="mae")
+		print(self.model.summary())
+
+	def create_model_lstm_512(self, num_features: int):
+		print(f'Creating a new LSTM model with {self.num_features} features and 512 neurons with dropout as input layer...')
+
+		self.model = Sequential()
+		self.model.add(CuDNNLSTM(512, input_shape=(self.num_features, 1)))
+		self.model.add(Dropout(0.5))
+		self.model.add(Dense(64, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.001), loss="mae")
+		print(self.model.summary())
+
+	def create_model_gru(self, num_features: int):
+		print(f'Creating a new GRU model with {self.num_features} features and 128 neurons as input layer...')
+		self.model = Sequential()
+		self.model.add(CuDNNGRU(128, input_shape=(self.num_features, 1)))
+		self.model.add(Dense(64, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.01), loss="mae")
+		print(self.model.summary())
+
+	def create_model_lgbm(self):
+		'''
+		params = {'num_leaves': 256,
+			'min_data_in_leaf': 500,
+			'objective':'regression',
+			'max_depth': 32,
+			'max_bin': 1024,
+			'num_iterations': 10240,
+			'learning_rate': 0.001,
+			#"boosting": "gbdt",
+			"boosting": "dart",
+			"feature_fraction": 0.91,
+			"bagging_freq": 1,
+			"bagging_fraction": 0.91,
+			"bagging_seed": 42,
+			"metric": 'mae',
+			"lambda_l1": 0.1,
+			"verbosity": 4,
+			"random_state": 42}
+		'''
+		params = {'num_leaves': 21,
+			'min_data_in_leaf': 20,
+			'objective':'regression',
+			'learning_rate': 0.001,
+			'max_depth': 108,
+			"boosting": "gbdt",
+			"feature_fraction": 0.91,
+			"bagging_freq": 1,
+			"bagging_fraction": 0.91,
+			"bagging_seed": 42,
+			"metric": 'mae',
+			"lambda_l1": 0.1,
+			"verbosity": 10,
+			"random_state": 42}
+
+		print(f'Creating a new LGBM model with a lot of params...')
+		self.model = lgb.LGBMRegressor(**params, n_estimators=60000, n_jobs=-1)
+
 
 	# Ok, now we have to separate the init of the class and the model creation, because we can later recreate the model
 	# after we dropped some features (e.g. 111 out 159 :) by running LogisticRegression
 	def create_model(self, num_features: int):
-
-		self.num_features = num_features
-		print(f'Creating a new LSTM model with {self.num_features} neurons as input layer...')
 
 #		self.model = Sequential()
 #		self.model.add(CuDNNLSTM(96, input_shape=(self.num_features, 1)))
@@ -224,6 +276,7 @@ class Rnn:
 		self.model.compile(optimizer=adam(lr=0.005), loss="mae")
 		'''
 
+		'''
 		self.model = Sequential()
 		self.model.add(CuDNNGRU(128, input_shape=(self.num_features, 1)))
 		self.model.add(Dense(64, activation='relu'))
@@ -231,10 +284,11 @@ class Rnn:
 		self.model.compile(optimizer=adam(lr=0.01), loss="mae")
 
 		print(self.model.summary())
+		'''
 
-	def create_dataset(self, training_set, validation_set, scaled_features_name='/tmp/scaled_features.csv'):
+	def create_dataset(self, training_set, validation_set):
 
-		x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set, scaled_features_name)
+		x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set)
 		return x_train, y_train, x_valid, y_valid
 
 
@@ -242,12 +296,6 @@ class Rnn:
 
 
 	def cnn_lstm_fit(self, X, y, batch_size: int = 32, epochs: int = 20, model_name = '/tmp/keras_model.hdf5'):
-
-		'''
-		print(X.shape)
-		X.reshape(2, int(X.shape[0]/2), X.shape[1], X.shape[2], 1)
-		print(X.shape)
-		'''
 
 		# checkpoint
 		filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{loss:.5f}.hdf5"
@@ -281,14 +329,18 @@ class Rnn:
 
 
 
-	def fit(self, training_set, validation_set, batch_size: int = 32, epochs: int = 20, model_name = '/tmp/keras_model.hdf5', scaled_features_name='/tmp/scaled_features.csv', create_x_y_dataset=True):
+	def fit(self, training_set, batch_size: int = 32, epochs: int = 20,
+		model_name = '/tmp/keras_model.hdf5', create_x_y_dataset=True, validation_set=None):
 
 		if create_x_y_dataset:
-			#x_train, y_train, x_valid, y_valid = self._create_x_y_normalized_across_all_data(training_set, validation_set, scaled_features_name)
-			x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set, scaled_features_name)
+			#x_train, y_train, x_valid, y_valid = self._create_x_y_normalized_across_all_data(training_set, validation_set)
+			x_train, y_train, x_valid, y_valid = self._create_x_y(training_set, validation_set)
 
 		# checkpoint
-		filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{loss:.5f}-{val_loss:.5f}.hdf5"
+		if validation_set is None:
+			filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{loss:.5f}.hdf5"
+		else:
+			filepath	="/tmp/lanl-checkpoint-{epoch:02d}-{loss:.5f}-{val_loss:.5f}.hdf5"
 		checkpoint_vloss= ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
 		checkpoint_loss	= ModelCheckpoint(filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
 		#earlystopping	= EarlyStopping(monitor='val_loss', patience=5, verbose=0, mode='auto', baseline=0.5) #, restore_best_weights=True)
@@ -297,16 +349,19 @@ class Rnn:
 		reduce_lr_vloss	= ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10, min_lr=0.0001)
 		reduce_lr_loss	= ReduceLROnPlateau(monitor='loss',	factor=0.2, patience=10, min_lr=0.0001)
 
-		#callbacks_list	= [checkpoint_loss, checkpoint_vloss, reduce_lr_loss, reduce_lr_vloss]
-		#callbacks_list	= [checkpoint_loss, reduce_lr_loss]
+		if validation_set is None:
+			callbacks_list	= [checkpoint_loss, reduce_lr_loss]
+		else:
+			callbacks_list	= [checkpoint_loss, checkpoint_vloss, reduce_lr_loss, reduce_lr_vloss]
 
 		#self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
 		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), epochs=epochs, batch_size=batch_size)
-		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
-		if self.do_use_lgbm_model:
+		if self.config.do_use_lgbm_model:
 			self.model.fit(x_train, y_train, eval_set=(x_valid, y_valid), eval_metric='mae', verbose=1000, early_stopping_rounds=2000)
+			self.model.plot_lgbm_feature_importance(training_set)
 		else:
-			self.model.fit(x_train, y_train, callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+			#self.model.fit(x_train, y_train, callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+			self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
 			print(f'Saving Keras model to: {model_name}')
 			self.model.save(model_name)
 
@@ -320,7 +375,7 @@ class Rnn:
 		scaled = x.reshape(-1, self.num_features)
 
 		x_test = np.array(scaled[:, :self.num_features])
-		if not self.do_use_lgbm_model:
+		if not self.config.do_use_lgbm_model:
 			# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
 			x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
 
@@ -329,7 +384,7 @@ class Rnn:
 		predictions = self.model.predict(x_test)
 		return predictions[-1]
 
-	def _create_x_y(self, training_set: pd.core.frame.DataFrame, validation_set: pd.core.frame.DataFrame, scaled_features_name):
+	def _create_x_y(self, training_set: pd.core.frame.DataFrame, validation_set: pd.core.frame.DataFrame):
 
 		train_len = len(training_set.index)
 		valid_len = len(validation_set.index)
@@ -337,7 +392,8 @@ class Rnn:
 		x_valid   = None
 		y_valid   = None
 
-		if self.do_rescale:
+		if self.config.do_rescale:
+			print(f'Performing MaxMinScale across all the {self.num_features} features')
 			# Now we MaxMinScale (or StandardScale) the two separate datasets (train and test/validation set) because the two dataset have very different
 			# behavior and properties and it makes no sense to try to handle them as "an unique thing".
 			x_train_rescaled = self.scaler.fit_transform(training_set.iloc[:  , :self.num_features])
@@ -372,17 +428,9 @@ class Rnn:
 			print(validation_set.columns[:self.num_features])
 
 
-		if self.do_logistic_regression:
+		if self.config.do_logistic_regression:
 			rescaled_train_df = pd.DataFrame(x_train, index=training_set.index  , columns=training_set.columns  [:self.num_features])
 			rescaled_valid_df = pd.DataFrame(x_valid, index=validation_set.index, columns=validation_set.columns[:self.num_features])
-
-			'''
-			sel_ = SelectFromModel(LogisticRegression(C=1, penalty='l1'))
-			sel_.fit(x_train, (y_train * 1000).astype(int))
-			print(sel_.get_support())
-	
-			cols = sel_.get_support(indices=True)
-			'''
 	
 			cols = [ 0, 2, 29, 30, 32, 35, 38, 41, 46, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 87, 88, 89, 90, 91, 97, 98, 99, 100, 101, 107, 109, 120, 124, 125, 136, 140, 141, 152, 156, 157 ]
 	
@@ -395,7 +443,6 @@ class Rnn:
 			rescaled_valid_df_good_feat = rescaled_valid_df.iloc[ : , cols]
 			print(rescaled_train_df_good_feat.head())
 			print(rescaled_valid_df_good_feat.head())
-	
 	
 			# Let's do it one more time :(
 			x_train = np.array(rescaled_train_df_good_feat.iloc[:, :self.num_features])
@@ -410,7 +457,7 @@ class Rnn:
 
 			self.create_model(len(cols))
 
-		if not self.do_use_lgbm_model:
+		if not self.config.do_use_lgbm_model:
 			# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
 			x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
 			if valid_len != 0:
@@ -436,7 +483,7 @@ class Rnn:
 
 
 
-	def _create_x_y_normalized_across_all_data(self, training_set: pd.core.frame.DataFrame, validation_set: pd.core.frame.DataFrame, scaled_features_name):
+	def _create_x_y_normalized_across_all_data(self, training_set: pd.core.frame.DataFrame, validation_set: pd.core.frame.DataFrame):
 
 		print(f'Concatenating training set (shape: {training_set.shape}) and validation set (shape: {validation_set.shape}) before scaling the dataset(s).')
 		train_plus_validation_set = pd.concat([training_set, validation_set], ignore_index=True)
@@ -456,8 +503,8 @@ class Rnn:
 							columns=train_plus_validation_set.columns[:-1],
 							dtype=np.float32)
 		print(x_train_valid_rescaled_df)
-		print(f'Saving scaled features to: {scaled_features_name}')
-		x_train_valid_rescaled_df.to_csv(scaled_features_name)
+		#print(f'Saving scaled features to: {scaled_features_name}')
+		#x_train_valid_rescaled_df.to_csv(scaled_features_name)
 
 
 		# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
@@ -474,49 +521,13 @@ class Rnn:
 
 		return x_train, y_train, x_valid, y_valid
 
-	def create_lgbm_model(self):
-		'''
-		params = {'num_leaves': 256,
-			'min_data_in_leaf': 500,
-			'objective':'regression',
-			'max_depth': 32,
-			'max_bin': 1024,
-			'num_iterations': 10240,
-			'learning_rate': 0.001,
-			#"boosting": "gbdt",
-			"boosting": "dart",
-			"feature_fraction": 0.91,
-			"bagging_freq": 1,
-			"bagging_fraction": 0.91,
-			"bagging_seed": 42,
-			"metric": 'mae',
-			"lambda_l1": 0.1,
-			"verbosity": 4,
-			"random_state": 42}
-		'''
-		params = {'num_leaves': 21,
-			'min_data_in_leaf': 20,
-			'objective':'regression',
-			'learning_rate': 0.001,
-			'max_depth': 108,
-			"boosting": "gbdt",
-			"feature_fraction": 0.91,
-			"bagging_freq": 1,
-			"bagging_fraction": 0.91,
-			"bagging_seed": 42,
-			"metric": 'mae',
-			"lambda_l1": 0.1,
-			"verbosity": 10,
-			"random_state": 42}
-
-		self.model = lgb.LGBMRegressor(**params, n_estimators=60000, n_jobs=-1)
-
 	def plot_lgbm_feature_importance(self, training_set):
 		clf = self.model
 		X   = training_set
 
 		# sorted(zip(clf.feature_importances_, X.columns), reverse=True)
 		feature_imp = pd.DataFrame(sorted(zip(clf.feature_importances_,X.columns)), columns=['Value','Feature'])
+		submission.to_csv('/tmp/lgbm_importances-01.csv')
 		
 		plt.figure(figsize=(20, 10))
 		sns.barplot(x="Value", y="Feature", data=feature_imp.sort_values(by="Value", ascending=False))
@@ -528,7 +539,7 @@ class Rnn:
 	def create_convolutional_model(self, X):
 		self.model = Sequential()
 		
-		if self.do_use_timedistributed:
+		if self.config.do_use_timedistributed:
 			#1st conv layer
 			self.model.add(TimeDistributed(Conv2D(16, (7,7), padding="valid",
 						input_shape=(X.shape[1],X.shape[2],1),data_format="channels_last",
@@ -613,7 +624,7 @@ class Rnn:
 		#adam = optimizers.Adam(lr=0.01)
 		'''
 		
-		if self.do_use_timedistributed:
+		if self.config.do_use_timedistributed:
 			self.model.add(TimeDistributed(Flatten()))
 			#self.model.add(MaxPooling2D(pool_size=(16,16)))
 			#self.model.compile(loss='binary_crossentropy', metrics=[auc], optimizer='adam')
