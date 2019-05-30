@@ -92,7 +92,7 @@ def predict_single_on_scaled_features(model, x_test, base_name):
 		#features = get_stat_summaries(seg, 150000, do_fft=True, do_stft=True, run_parallel=False, include_y=False)
 		#submission.time_to_failure[i] = model.predict(features.values.reshape(features.values.shape[0],features.values.shape[1],1))
 		submission.time_to_failure[i] = model.predict(x_test[i].reshape(1,x_test.shape[1],1))
-		print('Prediction for submission no.:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
+		print('Prediction for submission no:', i, ' - id: ', seg_id, ' - time to failure:', submission.time_to_failure[i])
 
 	milliseconds = datetime.utcnow().strftime('%f')					# these are useful for huge-batch-parallel processing of pre-trained models
 	submission_name = 'submission-' + base_name + '-' + milliseconds + '.csv'
@@ -233,6 +233,14 @@ def create_standard_features_for_test_set():
 
 
 
+def show_correlation_map():
+	colormap = plt.cm.RdBu
+	plt.figure(figsize=(14,12))
+	plt.title('Pearson Correlation of Features', y=1.05, size=15)
+	sns.heatmap(training_set.astype(float).corr(),linewidths=0.1,vmax=1.0, 
+		square=True, cmap=colormap, linecolor='white', annot=True)
+
+
 
 
 def main(argv):
@@ -273,6 +281,7 @@ def main(argv):
 		do_logistic_regression:			bool	= False
 		do_rescale:				bool	= False
 		do_use_lgbm_model:			bool	= False
+		do_use_xgboost_model:			bool	= False
 		do_use_timedistributed:			bool	= False
 		do_use_do_use_convlstm:			bool	= False
 		do_load_signal_images:			bool	= False
@@ -300,8 +309,9 @@ def main(argv):
 	config.do_convolution_instead_of_manual_FE	= False
 	config.do_logistic_regression			= False
 
-	config.model					= 'lstm-512'
+	config.model					= 'xgboost'
 	config.do_use_lgbm_model			= False
+	config.do_use_xgboost_model			= True
 	config.do_use_timedistributed			= False
 	config.do_use_convlstm				= False
 
@@ -309,31 +319,13 @@ def main(argv):
 
 	config.do_predict				= True
 	# Training parameters
-	config.batch_size				= 8
+	config.batch_size				= 1024
 	config.epochs					= 4000
 
 
 	if config.do_convolution_instead_of_manual_FE:
 		config.chip_size			= 150000
 
-
-
-	'''
-	segment_size = 150000
-	base_time = datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
-	do_differentiate_features_series	= False
-	do_drop_useless_features		= True
-	do_convolution_instead_of_manual_FE	= True
-	do_use_lgbm_model			= True
-	do_use_timedistributed			= False
-	do_use_convlstm				= True
-	if do_convolution_instead_of_manual_FE:
-		chip_size = 150000
-
-	# Training parameters
-	batch_size = 4
-	epochs = 4000
-	'''
 
 	# Perform "manual" features engineering (FE)
 	if config.do_create_standard_features:
@@ -497,10 +489,10 @@ def main(argv):
 		print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
 		model = Rnn(config, feature_count-1)			# Because time_to_failure is our y!
 
-		model.fit(training_set,					# we may also try to validate our model during training
+		x_train, y_train, x_valid, y_valid = model.fit(training_set,	# we may also try to validate our model during training
 				batch_size=config.batch_size,
 				epochs=config.epochs,
-				model_name=model_name,			# to save the model at the end of ALL the epochs (checkpoint saving is on)
+				model_name=model_name,				# to save the model at the end of ALL the epochs (besides checkpoints)
 				validation_set=test_set)
 
 		print(20*'*', 'End of training', 20*'*')

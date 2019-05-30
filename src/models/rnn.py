@@ -27,6 +27,7 @@ import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 
 import lightgbm as lgb
+import xgboost  as xgb
 
 
 # Plot CNN architecture
@@ -74,6 +75,8 @@ class Rnn:
 			self.create_model_gru(num_features)
 		if self.config.model == 'lgbm':
 			self.create_model_lgbm()
+		if self.config.model == 'xgboost':
+			self.create_model_xgboost()
 		
 
 	def create_model_lstm_128(self, num_features: int):
@@ -101,7 +104,7 @@ class Rnn:
 		self.model.add(Dropout(0.5))
 		self.model.add(Dense(64, activation='relu'))
 		self.model.add(Dense(1))
-		self.model.compile(optimizer=adam(lr=0.001), loss="mae")
+		self.model.compile(optimizer=adam(lr=0.00001), loss="mae")
 		print(self.model.summary())
 
 	def create_model_gru(self, num_features: int):
@@ -150,6 +153,29 @@ class Rnn:
 
 		print(f'Creating a new LGBM model with a lot of params...')
 		self.model = lgb.LGBMRegressor(**params, n_estimators=60000, n_jobs=-1)
+
+	def create_model_xgboost(self):
+		print(f'Creating a new XGBoost model with a lot of params...')
+		self.model = xgb.XGBRegressor(
+				learning_rate = 0.001,
+				n_estimators = 2000,
+				max_depth = 10,
+				min_child_weight = 10,
+				#gamma = 1,
+				gamma = 0.9,
+				subsample = 0.8,
+				colsample_bytree = 0.8,
+				#objective = 'binary:logistic',
+				objective='reg:linear',
+				#objective='reg:squarederror',
+				#objective='reg:gamma', # OMG, horrible!
+				#objective='reg:tweedie', # less horrible, but still horrible
+				nthread = -1,
+				random_state = 42,
+				#eval_metric = 'mae',
+				scale_pos_weight = 1)
+		#.fit(x_train, y_train)
+		#predictions = gbm.predict(x_test)
 
 
 	# Ok, now we have to separate the init of the class and the model creation, because we can later recreate the model
@@ -356,14 +382,23 @@ class Rnn:
 
 		#self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
 		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), epochs=epochs, batch_size=batch_size)
-		if self.config.do_use_lgbm_model:
-			self.model.fit(x_train, y_train, eval_set=(x_valid, y_valid), eval_metric='mae', verbose=1000, early_stopping_rounds=2000)
-			self.model.plot_lgbm_feature_importance(training_set)
-		else:
-			#self.model.fit(x_train, y_train, callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
-			self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
-			print(f'Saving Keras model to: {model_name}')
-			self.model.save(model_name)
+		if self.config.do_use_lgbm_model or self.config.do_use_xgboost_model:
+			print(80*'*', 'About to train!!!')
+			print(x_train.shape)
+			print(y_train.shape)
+			print(x_valid.shape)
+			print(y_valid.shape)
+			print(80*'*')
+			eval_set = [(x_valid, y_valid)]
+			self.model.fit(x_train, y_train, eval_set=eval_set, eval_metric='mae', verbose=1000, early_stopping_rounds=2000)
+			#self.model.plot_lgbm_feature_importance(training_set)
+			#self.model.show_correlation_map(training_set)
+			return x_train, y_train, x_valid, y_valid
+
+		#self.model.fit(x_train, y_train, callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+		self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+		print(f'Saving Keras model to: {model_name}')
+		self.model.save(model_name)
 
 		return x_train, y_train, x_valid, y_valid
 
@@ -375,13 +410,14 @@ class Rnn:
 		scaled = x.reshape(-1, self.num_features)
 
 		x_test = np.array(scaled[:, :self.num_features])
-		if not self.config.do_use_lgbm_model:
+		if not self.config.do_use_lgbm_model and not self.config.do_use_xgboost_model:
 			# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
 			x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
 
 		# time_to_failure was not scaled before! that's why we don't do self.scaler.inverse_transform() here! :)
 
 		predictions = self.model.predict(x_test)
+		print('Raw predictions: ', predictions)
 		return predictions[-1]
 
 	def _create_x_y(self, training_set: pd.core.frame.DataFrame, validation_set: pd.core.frame.DataFrame):
@@ -457,23 +493,35 @@ class Rnn:
 
 			self.create_model(len(cols))
 
-		if not self.config.do_use_lgbm_model:
+		if not self.config.do_use_lgbm_model and not self.config.do_use_xgboost_model:
 			# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
 			x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
 			if valid_len != 0:
 				x_valid = np.reshape(x_valid, (x_valid.shape[0], x_valid.shape[1], 1))
 
-		print(x_train.shape)
-		if valid_len != 0:
-			print(x_valid.shape)
+		'''
+		y_train = np.reshape(y_train, (y_train.shape[0], 1))
+		y_valid = np.reshape(y_valid, (y_valid.shape[0], 1))
+		'''
+		y_train = y_train.reshape((-1,1))
+		y_valid = y_valid.reshape((-1,1))
 
-		print(y_train.shape)
+
+		print(f'x_train.shape: {x_train.shape}')
 		if valid_len != 0:
-			print(y_valid.shape)
+			print(f'x_valid.shape: {x_valid.shape}')
+
+		print(f'y_train.shape: {y_train.shape}')
+		if valid_len != 0:
+			print(f'y_valid.shape: {y_valid.shape}')
 
 		print(50*'-', 'Training set')
 		print(x_train[:10, :])
 		print(y_train)
+		if valid_len != 0:
+			print(50*'-', 'Validation set')
+			print(x_valid[:10, :])
+			print(y_valid)
 		print(80*'-')
 
 		return x_train, y_train, x_valid, y_valid
@@ -535,6 +583,13 @@ class Rnn:
 		plt.tight_layout()
 		#plt.show()
 		plt.savefig('/tmp/lgbm_importances-01.png')
+
+	def show_correlation_map(self, training_set):
+		colormap = plt.cm.RdBu
+		plt.figure(figsize=(14,12))
+		plt.title('Pearson Correlation of Features', y=1.05, size=15)
+		sns.heatmap(training_set.astype(float).corr(),linewidths=0.1,vmax=1.0, 
+			square=True, cmap=colormap, linecolor='white', annot=True)
 
 	def create_convolutional_model(self, X):
 		self.model = Sequential()
