@@ -16,6 +16,8 @@ from scipy.signal import convolve
 from scipy.signal import stft
 from scipy.fftpack import fft
 
+import matplotlib.pyplot as plt
+
 
 from joblib import Parallel, delayed
 
@@ -38,24 +40,14 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
     stat_summary.loc[index, 'max'] = step_data.max()
 
     if do_fft:
-        f        = fft(step_data)
-        f_amp    = np.sqrt(np.real(f)**2 + np.imag(f)**2)
-        fft_data = pd.Series(f_amp)
-
-        '''
-        print(fft_data)
-        print(step_data)
-        print(f_amp.shape)
-        print(fft_data.shape)
-        print(fft_data.mean())
-        print(step_data.shape)
-        print(step_data.mean())
-        '''
-
-#        print(index, stat_summary.index)
-#        print(index, stat_summary.columns)
-#        #print(stat_summary.describe())
-#        print(index, stat_summary)
+        f		= fft(step_data)
+        #f_amp		= np.sqrt(np.real(f)**2 + np.imag(f)**2)
+        fft_real	= np.real(f)
+        fft_imag	= np.imag(f)
+        f_amp		= np.sqrt(fft_real**2 + fft_imag**2)
+        fft_data	= pd.Series(f_amp)
+        fft_real_data	= pd.Series(fft_real)
+        fft_imag_data	= pd.Series(fft_imag)
 
         stat_summary.loc[index, 'fft_mean']             = fft_data.mean()
         stat_summary.loc[index, 'fft_std']              = fft_data.std()
@@ -97,12 +89,143 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
         stat_summary.loc[index, 'fft_hann_window_mean'] = (convolve(fft_data, hann_150, mode='same') / sum(hann_150)).mean()
 
 
+
+        stat_summary.loc[index, 'fft_real_mean']             = fft_real_data.mean()
+        stat_summary.loc[index, 'fft_real_std']              = fft_real_data.std()
+        stat_summary.loc[index, 'fft_real_min']              = fft_real_data.min()
+        stat_summary.loc[index, 'fft_real_max']              = fft_real_data.max()
+
+        stat_summary.loc[index, 'fft_real_q95']              = np.quantile(fft_real_data, 0.95)
+        stat_summary.loc[index, 'fft_real_q99']              = np.quantile(fft_real_data, 0.99)
+        stat_summary.loc[index, 'fft_real_q05']              = np.quantile(fft_real_data, 0.05)
+        stat_summary.loc[index, 'fft_real_q01']              = np.quantile(fft_real_data, 0.01)
+
+        stat_summary.loc[index, 'fft_real_std_first5k']      = fft_real_data[:step_size_large].mean()
+        stat_summary.loc[index, 'fft_real_mean_first5k']     = fft_real_data[:step_size_large].std()
+        stat_summary.loc[index, 'fft_real_min_first5k']      = fft_real_data[:step_size_large].min()
+        stat_summary.loc[index, 'fft_real_max_first5k']      = fft_real_data[:step_size_large].max()
+
+        stat_summary.loc[index, 'fft_real_std_last5k']       = fft_real_data[-step_size_large:].mean()
+        stat_summary.loc[index, 'fft_real_mean_last5k']      = fft_real_data[-step_size_large:].std()
+        stat_summary.loc[index, 'fft_real_min_last5k']       = fft_real_data[-step_size_large:].min()
+        stat_summary.loc[index, 'fft_real_max_last5k']       = fft_real_data[-step_size_large:].max()
+
+        stat_summary.loc[index, 'fft_real_std_first1k']      = fft_real_data[:step_size_small].mean()
+        stat_summary.loc[index, 'fft_real_mean_first1k']     = fft_real_data[:step_size_small].std()
+        stat_summary.loc[index, 'fft_real_min_first1k']      = fft_real_data[:step_size_small].min()
+        stat_summary.loc[index, 'fft_real_max_first1k']      = fft_real_data[:step_size_small].max()
+
+        stat_summary.loc[index, 'fft_real_std_last1k']       = fft_real_data[-step_size_small:].mean()
+        stat_summary.loc[index, 'fft_real_mean_last1k']      = fft_real_data[-step_size_small:].std()
+        stat_summary.loc[index, 'fft_real_min_last1k']       = fft_real_data[-step_size_small:].min()
+        stat_summary.loc[index, 'fft_real_max_last1k']       = fft_real_data[-step_size_small:].max()
+
+        stat_summary.loc[index, 'fft_real_trend']            = _get_trend(fft_real_data)
+        stat_summary.loc[index, 'fft_real_trend_abs']        = _get_trend(fft_real_data, True)
+
+        stat_summary.loc[index, 'fft_real_count_big']        = len(fft_real_data[np.abs(fft_real_data) > 500])
+        stat_summary.loc[index, 'fft_real_hilbert_mean']     = np.abs(hilbert(fft_real_data)).mean()
+
+        hann_150 = hann(150)
+        stat_summary.loc[index, 'fft_real_hann_window_mean'] = (convolve(fft_real_data, hann_150, mode='same') / sum(hann_150)).mean()
+
+
+
+
+        stat_summary.loc[index, 'fft_imag_mean']             = fft_imag_data.mean()
+        stat_summary.loc[index, 'fft_imag_std']              = fft_imag_data.std()
+        stat_summary.loc[index, 'fft_imag_min']              = fft_imag_data.min()
+        stat_summary.loc[index, 'fft_imag_max']              = fft_imag_data.max()
+
+        stat_summary.loc[index, 'fft_imag_q95']              = np.quantile(fft_imag_data, 0.95)
+        stat_summary.loc[index, 'fft_imag_q99']              = np.quantile(fft_imag_data, 0.99)
+        stat_summary.loc[index, 'fft_imag_q05']              = np.quantile(fft_imag_data, 0.05)
+        stat_summary.loc[index, 'fft_imag_q01']              = np.quantile(fft_imag_data, 0.01)
+
+        stat_summary.loc[index, 'fft_imag_std_first5k']      = fft_imag_data[:step_size_large].mean()
+        stat_summary.loc[index, 'fft_imag_mean_first5k']     = fft_imag_data[:step_size_large].std()
+        stat_summary.loc[index, 'fft_imag_min_first5k']      = fft_imag_data[:step_size_large].min()
+        stat_summary.loc[index, 'fft_imag_max_first5k']      = fft_imag_data[:step_size_large].max()
+
+        stat_summary.loc[index, 'fft_imag_std_last5k']       = fft_imag_data[-step_size_large:].mean()
+        stat_summary.loc[index, 'fft_imag_mean_last5k']      = fft_imag_data[-step_size_large:].std()
+        stat_summary.loc[index, 'fft_imag_min_last5k']       = fft_imag_data[-step_size_large:].min()
+        stat_summary.loc[index, 'fft_imag_max_last5k']       = fft_imag_data[-step_size_large:].max()
+
+        stat_summary.loc[index, 'fft_imag_std_first1k']      = fft_imag_data[:step_size_small].mean()
+        stat_summary.loc[index, 'fft_imag_mean_first1k']     = fft_imag_data[:step_size_small].std()
+        stat_summary.loc[index, 'fft_imag_min_first1k']      = fft_imag_data[:step_size_small].min()
+        stat_summary.loc[index, 'fft_imag_max_first1k']      = fft_imag_data[:step_size_small].max()
+
+        stat_summary.loc[index, 'fft_imag_std_last1k']       = fft_imag_data[-step_size_small:].mean()
+        stat_summary.loc[index, 'fft_imag_mean_last1k']      = fft_imag_data[-step_size_small:].std()
+        stat_summary.loc[index, 'fft_imag_min_last1k']       = fft_imag_data[-step_size_small:].min()
+        stat_summary.loc[index, 'fft_imag_max_last1k']       = fft_imag_data[-step_size_small:].max()
+
+        stat_summary.loc[index, 'fft_imag_trend']            = _get_trend(fft_imag_data)
+        stat_summary.loc[index, 'fft_imag_trend_abs']        = _get_trend(fft_imag_data, True)
+
+        stat_summary.loc[index, 'fft_imag_count_big']        = len(fft_imag_data[np.abs(fft_imag_data) > 500])
+        stat_summary.loc[index, 'fft_imag_hilbert_mean']     = np.abs(hilbert(fft_imag_data)).mean()
+
+        hann_150 = hann(150)
+        stat_summary.loc[index, 'fft_imag_hann_window_mean'] = (convolve(fft_imag_data, hann_150, mode='same') / sum(hann_150)).mean()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if do_stft:
         #f        = fft(step_data)
         #f_amp    = np.sqrt(np.real(f)**2 + np.imag(f)**2)
         #fft_data = pd.Series(f_amp)
-        stft_data, stft_data_t, stft_data_Zxx = stft(step_data, nperseg=step_data.shape[0])
-        stft_data = pd.Series(stft_data)
+        #stft_data, stft_data_t, stft_data_Zxx = stft(step_data, nperseg=step_data.shape[0])
+
+        #freqs, times, spec = stft(step_data, 4000000, nperseg=step_data.shape[0])
+        freqs, times, spec = stft(step_data, 4000000, nperseg=4096)
+        # Log spectrogram
+        print(80*'*')
+        print(np.abs(spec))
+        print(80*'*')
+        amp = np.log(np.abs(spec)+1e-10)
+        print(np.abs(amp))
+        print(80*'*')
+
+        print(step_data.shape)
+        print(spec.shape)
+        print(amp.shape)
+
+        ax = plt.gca()
+        ax.imshow(np.abs(spec), aspect='auto', origin='lower', 
+                   extent=[times.min(), times.max(), freqs.min(), freqs.max()])
+        ax.set_title('Spectrogram')
+        ax.set_ylabel('Freqs in Hz')
+        ax.set_xlabel('Seconds')
+        plt.show()
+        plt.close()
+        ax = plt.gca()
+        ax.imshow(amp, aspect='auto', origin='lower', 
+                   extent=[times.min(), times.max(), freqs.min(), freqs.max()])
+        ax.set_title('Amplitude Spectrogram')
+        ax.set_ylabel('Freqs in Hz')
+        ax.set_xlabel('Seconds')
+        plt.show()
+        plt.close()
+
+        stft_data = pd.DataFrame(amp)
+        print(stft_data)
+        #sys.exit()
+        return
 
         stat_summary.loc[index, 'stft_mean']             = stft_data.mean()
         stat_summary.loc[index, 'stft_std']              = stft_data.std()
@@ -215,6 +338,17 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
     stat_summary.loc[index, 'q07A'] = np.quantile(step_data[0:round(records/2)], 0.07)
     stat_summary.loc[index, 'q08A'] = np.quantile(step_data[0:round(records/2)], 0.08)
     stat_summary.loc[index, 'q09A'] = np.quantile(step_data[0:round(records/2)], 0.09)
+
+    stat_summary.loc[index, 'q10A'] = np.quantile(step_data[0:round(records/2)], 0.10)
+    stat_summary.loc[index, 'q20A'] = np.quantile(step_data[0:round(records/2)], 0.20)
+    stat_summary.loc[index, 'q30A'] = np.quantile(step_data[0:round(records/2)], 0.30)
+    stat_summary.loc[index, 'q40A'] = np.quantile(step_data[0:round(records/2)], 0.40)
+    stat_summary.loc[index, 'q50A'] = np.quantile(step_data[0:round(records/2)], 0.50)
+    stat_summary.loc[index, 'q60A'] = np.quantile(step_data[0:round(records/2)], 0.60)
+    stat_summary.loc[index, 'q70A'] = np.quantile(step_data[0:round(records/2)], 0.70)
+    stat_summary.loc[index, 'q80A'] = np.quantile(step_data[0:round(records/2)], 0.80)
+    stat_summary.loc[index, 'q90A'] = np.quantile(step_data[0:round(records/2)], 0.90)
+
     stat_summary.loc[index, 'q91A'] = np.quantile(step_data[0:round(records/2)], 0.91)
     stat_summary.loc[index, 'q92A'] = np.quantile(step_data[0:round(records/2)], 0.92)
     stat_summary.loc[index, 'q93A'] = np.quantile(step_data[0:round(records/2)], 0.93)
@@ -224,6 +358,7 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
     stat_summary.loc[index, 'q97A'] = np.quantile(step_data[0:round(records/2)], 0.97)
     stat_summary.loc[index, 'q98A'] = np.quantile(step_data[0:round(records/2)], 0.98)
     stat_summary.loc[index, 'q99A'] = np.quantile(step_data[0:round(records/2)], 0.99)
+
     stat_summary.loc[index, 'q01B'] = np.quantile(step_data[round(records/2)+1:records], 0.01)
     stat_summary.loc[index, 'q02B'] = np.quantile(step_data[round(records/2)+1:records], 0.02)
     stat_summary.loc[index, 'q03B'] = np.quantile(step_data[round(records/2)+1:records], 0.03)
@@ -233,6 +368,17 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
     stat_summary.loc[index, 'q07B'] = np.quantile(step_data[round(records/2)+1:records], 0.07)
     stat_summary.loc[index, 'q08B'] = np.quantile(step_data[round(records/2)+1:records], 0.08)
     stat_summary.loc[index, 'q09B'] = np.quantile(step_data[round(records/2)+1:records], 0.09)
+
+    stat_summary.loc[index, 'q10B'] = np.quantile(step_data[round(records/2)+1:records], 0.10)
+    stat_summary.loc[index, 'q20B'] = np.quantile(step_data[round(records/2)+1:records], 0.20)
+    stat_summary.loc[index, 'q30B'] = np.quantile(step_data[round(records/2)+1:records], 0.30)
+    stat_summary.loc[index, 'q40B'] = np.quantile(step_data[round(records/2)+1:records], 0.40)
+    stat_summary.loc[index, 'q50B'] = np.quantile(step_data[round(records/2)+1:records], 0.50)
+    stat_summary.loc[index, 'q60B'] = np.quantile(step_data[round(records/2)+1:records], 0.60)
+    stat_summary.loc[index, 'q70B'] = np.quantile(step_data[round(records/2)+1:records], 0.70)
+    stat_summary.loc[index, 'q80B'] = np.quantile(step_data[round(records/2)+1:records], 0.80)
+    stat_summary.loc[index, 'q90B'] = np.quantile(step_data[round(records/2)+1:records], 0.90)
+
     stat_summary.loc[index, 'q91B'] = np.quantile(step_data[round(records/2)+1:records], 0.91)
     stat_summary.loc[index, 'q92B'] = np.quantile(step_data[round(records/2)+1:records], 0.92)
     stat_summary.loc[index, 'q93B'] = np.quantile(step_data[round(records/2)+1:records], 0.93)
@@ -359,6 +505,8 @@ def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 15
 
          if do_fft:
               cols.extend([ 'fft_mean', 'fft_std', 'fft_min', 'fft_max', 'fft_q95', 'fft_q99', 'fft_q05', 'fft_q01', 'fft_std_first5k', 'fft_mean_first5k', 'fft_min_first5k', 'fft_max_first5k', 'fft_std_last5k', 'fft_mean_last5k', 'fft_min_last5k', 'fft_max_last5k', 'fft_std_first1k', 'fft_mean_first1k', 'fft_min_first1k', 'fft_max_first1k', 'fft_std_last1k', 'fft_mean_last1k', 'fft_min_last1k', 'fft_max_last1k', 'fft_trend', 'fft_trend_abs', 'fft_count_big', 'fft_hilbert_mean', 'fft_hann_window_mean' ])
+              cols.extend([ 'fft_real_mean', 'fft_real_std', 'fft_real_min', 'fft_real_max', 'fft_real_q95', 'fft_real_q99', 'fft_real_q05', 'fft_real_q01', 'fft_real_std_first5k', 'fft_real_mean_first5k', 'fft_real_min_first5k', 'fft_real_max_first5k', 'fft_real_std_last5k', 'fft_real_mean_last5k', 'fft_real_min_last5k', 'fft_real_max_last5k', 'fft_real_std_first1k', 'fft_real_mean_first1k', 'fft_real_min_first1k', 'fft_real_max_first1k', 'fft_real_std_last1k', 'fft_real_mean_last1k', 'fft_real_min_last1k', 'fft_real_max_last1k', 'fft_real_trend', 'fft_real_trend_abs', 'fft_real_count_big', 'fft_real_hilbert_mean', 'fft_real_hann_window_mean' ])
+              cols.extend([ 'fft_imag_mean', 'fft_imag_std', 'fft_imag_min', 'fft_imag_max', 'fft_imag_q95', 'fft_imag_q99', 'fft_imag_q05', 'fft_imag_q01', 'fft_imag_std_first5k', 'fft_imag_mean_first5k', 'fft_imag_min_first5k', 'fft_imag_max_first5k', 'fft_imag_std_last5k', 'fft_imag_mean_last5k', 'fft_imag_min_last5k', 'fft_imag_max_last5k', 'fft_imag_std_first1k', 'fft_imag_mean_first1k', 'fft_imag_min_first1k', 'fft_imag_max_first1k', 'fft_imag_std_last1k', 'fft_imag_mean_last1k', 'fft_imag_min_last1k', 'fft_imag_max_last1k', 'fft_imag_trend', 'fft_imag_trend_abs', 'fft_imag_count_big', 'fft_imag_hilbert_mean', 'fft_imag_hann_window_mean' ])
 
          if do_stft:
               cols.extend([ 'stft_mean', 'stft_std', 'stft_min', 'stft_max', 'stft_q95', 'stft_q99', 'stft_q05', 'stft_q01', 'stft_std_first5k', 'stft_mean_first5k', 'stft_min_first5k', 'stft_max_first5k', 'stft_std_last5k', 'stft_mean_last5k', 'stft_min_last5k', 'stft_max_last5k', 'stft_std_first1k', 'stft_mean_first1k', 'stft_min_first1k', 'stft_max_first1k', 'stft_std_last1k', 'stft_mean_last1k', 'stft_min_last1k', 'stft_max_last1k', 'stft_trend', 'stft_trend_abs', 'stft_count_big', 'stft_hilbert_mean', 'stft_hann_window_mean' ])
@@ -366,7 +514,14 @@ def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 15
          cols.extend([ 'abs_mean', 'abs_std', 'abs_min', 'abs_max', 'q95', 'q99', 'q05', 'q01', 'std_first5k', 'mean_first5k', 'min_first5k', 'max_first5k', 'std_last5k', 'mean_last5k', 'min_last5k', 'max_last5k', 'std_first1k', 'mean_first1k', 'min_first1k', 'max_first1k', 'std_last1k', 'mean_last1k', 'min_last1k', 'max_last1k', 'trend', 'trend_abs', 'count_big', 'hilbert_mean', 'hann_window_mean'])
 
          # Found here: https://www.kaggle.com/amignan/baseline-rf-model-reproducing-the-2017-paper
-         cols.extend(['meanA', 'varA', 'varAnorm', 'skewA', 'skewAnorm', 'kurtA', 'kurtAnorm', 'meanB', 'varB', 'varBnorm', 'skewB', 'skewBnorm', 'kurtB', 'kurtBnorm', 'q01A', 'q02A', 'q03A', 'q04A', 'q05A', 'q06A', 'q07A', 'q08A', 'q09A', 'q01B', 'q02B', 'q03B', 'q04B', 'q05B', 'q06B', 'q07B', 'q08B', 'q09B', 'q91A', 'q92A', 'q93A', 'q94A', 'q95A', 'q96A', 'q97A', 'q98A', 'q99A', 'q91B', 'q92B', 'q93B', 'q94B', 'q95B', 'q96B', 'q97B', 'q98B', 'q99B', 'f00pA', 'f01pA', 'f02pA', 'f03pA', 'f04pA', 'f00nA', 'f01nA', 'f02nA', 'f03nA', 'f04nA', 'f00pB', 'f01pB', 'f02pB', 'f03pB', 'f04pB', 'f00nB', 'f01nB', 'f02nB', 'f03nB', 'f04nB', 'minA', 'maxA', 'minB', 'maxB'])
+         cols.extend(['meanA', 'varA', 'varAnorm', 'skewA', 'skewAnorm', 'kurtA', 'kurtAnorm', 'meanB', 'varB', 'varBnorm', 'skewB', 'skewBnorm', 'kurtB', 'kurtBnorm'])
+         cols.extend(['q01A', 'q02A', 'q03A', 'q04A', 'q05A', 'q06A', 'q07A', 'q08A', 'q09A'])
+         cols.extend(['q10A', 'q20A', 'q30A', 'q40A', 'q50A', 'q60A', 'q70A', 'q80A', 'q90A'])
+         cols.extend(['q91A', 'q92A', 'q93A', 'q94A', 'q95A', 'q96A', 'q97A', 'q98A', 'q99A'])
+         cols.extend(['q01B', 'q02B', 'q03B', 'q04B', 'q05B', 'q06B', 'q07B', 'q08B', 'q09B'])
+         cols.extend(['q10B', 'q20B', 'q30B', 'q40B', 'q50B', 'q60B', 'q70B', 'q80B', 'q90B'])
+         cols.extend(['q91B', 'q92B', 'q93B', 'q94B', 'q95B', 'q96B', 'q97B', 'q98B', 'q99B'])
+         cols.extend(['f00pA', 'f01pA', 'f02pA', 'f03pA', 'f04pA', 'f00nA', 'f01nA', 'f02nA', 'f03nA', 'f04nA', 'f00pB', 'f01pB', 'f02pB', 'f03pB', 'f04pB', 'f00nB', 'f01nB', 'f02nB', 'f03nB', 'f04nB', 'minA', 'maxA', 'minB', 'maxB'])
 
 
          # These need to be concat with windows_str ([10, 100, 1000] - see above)

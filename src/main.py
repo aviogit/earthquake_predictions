@@ -68,7 +68,7 @@ def create_labeled_test_set():
 	for i, seg_id in enumerate(submission_avg.index):
 		curr_ttf = submission_avg.loc[seg_id, 'time_to_failure']
 		print(f'Reading test segment {i}/{nsegs} with id {seg_id}. Using time_to_failure: {curr_ttf}')
-		avg_ttf_df  = pd.DataFrame(curr_ttf, index=np.arange(0, segment_size), columns=['time_to_failure'], dtype=np.float32)
+		avg_ttf_df  = pd.DataFrame(curr_ttf, index=np.arange(0, config.segment_size), columns=['time_to_failure'], dtype=np.float32)
 		test_df     = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
 		labeled_seg = pd.concat([test_df, avg_ttf_df], axis=1)		# we concat two columns, the TTF one with always the same value
 		segs.append(labeled_seg)					# because the features extractor uses just the last TTF value
@@ -77,7 +77,7 @@ def create_labeled_test_set():
 	print(df[0:2])
 	print(df[-2:])
 
-	#features = get_stat_summaries(df, segment_size, do_fft=True, do_stft=True, run_parallel=False, include_y=True)
+	#features = get_stat_summaries(df, config.segment_size, do_fft=True, do_stft=True, run_parallel=False, include_y=True)
 	#submission_avg.to_csv('submission_avg.csv')
 	return df
 
@@ -182,7 +182,7 @@ def load_standard_features(feat_fname, test_set_feat_fname):
 	return features, test_set_features, feature_count, test_set_feature_count
 
 
-def create_standard_features_for_training_set(fname):
+def create_standard_features_for_training_set(fname, config):
 	# Process training set
 	print('Opening and reading file:', fname)
 	training_set = pd.read_csv(fname, compression='gzip', dtype={'acoustic_data': np.float32, 'time_to_failure': np.float64})
@@ -190,11 +190,12 @@ def create_standard_features_for_training_set(fname):
 	print(training_set.describe())
 
 	if config.do_convolution_instead_of_manual_FE:
-		convolve_acoustic_data(training_set, 'training-set', segment_size, chip_size)
+		convolve_acoustic_data(training_set, 'training-set', config.segment_size, chip_size)
 		sys.exit(0)
 
 	print('Extracting features from the training set...')
-	features = get_stat_summaries(training_set, segment_size, do_fft=True, do_stft=True, run_parallel=True)
+	features = get_stat_summaries(training_set, config.segment_size, do_fft=True, do_stft=True,
+					run_parallel=config.create_features_in_parallel)
 
 	feature_count = len(features.columns)-1
 
@@ -209,15 +210,15 @@ def create_standard_features_for_training_set(fname):
 
 	return features, feature_count
 
-def create_standard_features_for_test_set():
+def create_standard_features_for_test_set(config):
 	# Process test set
 	labeled_test_set       = create_labeled_test_set()
 
 	if config.do_convolution_instead_of_manual_FE:
-		convolve_acoustic_data(labeled_test_set, 'test-set', segment_size, chip_size)
+		convolve_acoustic_data(labeled_test_set, 'test-set', config.segment_size, chip_size)
 		sys.exit(0)
 
-	test_set_features      = get_stat_summaries(labeled_test_set, segment_size, do_fft=True, do_stft=True, run_parallel=True, include_y=True)
+	test_set_features      = get_stat_summaries(labeled_test_set, config.segment_size, do_fft=True, do_stft=True, run_parallel=config.create_features_in_parallel, include_y=True)
 
 	test_set_feature_count = len(test_set_features.columns)-1
 	print(test_set_features)
@@ -285,6 +286,7 @@ def main(argv):
 		do_use_timedistributed:			bool	= False
 		do_use_do_use_convlstm:			bool	= False
 		do_load_signal_images:			bool	= False
+		create_features_in_parallel:		bool	= False
 		do_predict:				bool	= False
 		chip_size:				int	= 150000
 		model:					str	= 'lstm-128'
@@ -296,8 +298,8 @@ def main(argv):
 
 	config.segment_size				= 150000
 
-	config.do_create_standard_features		= False
-	config.do_load_standard_features		= True
+	config.do_create_standard_features		= True
+	config.do_load_standard_features		= False
 
 	config.do_train_model				= True
 	config.do_load_model				= False
@@ -317,6 +319,8 @@ def main(argv):
 
 	config.do_load_signal_images			= False
 
+	config.create_features_in_parallel		= False
+
 	config.do_predict				= True
 	# Training parameters
 	config.batch_size				= 1024
@@ -329,11 +333,11 @@ def main(argv):
 
 	# Perform "manual" features engineering (FE)
 	if config.do_create_standard_features:
-		fname = base_dir + '/train.csv.gz'
-		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# uncomment this to do a quicktest before every major change
+		#fname = base_dir + '/train.csv.gz'
+		fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# uncomment this to do a quicktest before every major change
 	
-		features, feature_count				= create_standard_features_for_training_set	(fname)
-		test_set_features, test_set_feature_count	= create_standard_features_for_test_set		()
+		features, feature_count				= create_standard_features_for_training_set	(fname, config)
+		test_set_features, test_set_feature_count	= create_standard_features_for_test_set		(config)
 
 		# These are still DataFrames
 		training_set = features
