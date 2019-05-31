@@ -64,26 +64,38 @@ def main(argv):
 
 	basedir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped/'
 
-	#scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_14.28.45-feature_count-225.csv'
-	scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_16.59.52-feature_count-225.csv'
-	#unscaled_features_train_fname    = basedir + 'features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv'
-	#unscaled_features_test_fname     = basedir + 'test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv'
-	unscaled_features_train_fname    = '/tmp/features-4194x159.csv'
-	unscaled_features_test_fname     = '/tmp/test_set_features-2623x159.csv'
+	#scaled_features_train_test_fname= basedir + 'earthquake-predictions-scaled-features-2019-05-17_14.28.45-feature_count-225.csv'
+	scaled_features_train_test_fname= basedir + 'earthquake-predictions-scaled-features-2019-05-17_16.59.52-feature_count-225.csv'
+	#unscaled_features_train_fname	= basedir + 'features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv'
+	#unscaled_features_test_fname	= basedir + 'test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv'
+	unscaled_features_train_fname	= '/tmp/features-4194x159.csv'
+	unscaled_features_test_fname	= '/tmp/test_set_features-2623x159.csv'
+	train_unscaled_stft_fname	= '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped/training-set-features-2019-05-31_12.06.13-feature_count-330.csv'
+	test_unscaled_stft_fname	= '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped/test-set-features-2019-05-31_12.33.00-feature_count-330.csv'
 
-	scaled_features_train_test       = pd.read_csv(scaled_features_train_test_fname)
-	unscaled_features_train          = pd.read_csv(unscaled_features_train_fname)
-	unscaled_features_test           = pd.read_csv(unscaled_features_test_fname)
+	'''
+	scaled_features_train_test	= pd.read_csv(scaled_features_train_test_fname)
+	unscaled_features_train		= pd.read_csv(unscaled_features_train_fname)
+	unscaled_features_test		= pd.read_csv(unscaled_features_test_fname)
+	'''
+	train_unscaled_stft		= pd.read_csv(train_unscaled_stft_fname)
+	test_unscaled_stft		= pd.read_csv(test_unscaled_stft_fname)
 
+	'''
 	scaled_features_train_test.drop(columns=['Unnamed: 0'], inplace=True)
 	unscaled_features_train.drop(columns=['Unnamed: 0'], inplace=True)
 	unscaled_features_test.drop(columns=['Unnamed: 0'], inplace=True)
+	'''
+	train_unscaled_stft.drop(columns=['Unnamed: 0'], inplace=True)
+	test_unscaled_stft.drop(columns=['Unnamed: 0'], inplace=True)
 
+	'''
 	scaled_nfeat       = len(scaled_features_train_test.columns)
 	unscaled_xtr_nfeat = len(unscaled_features_train.columns) - 1
 	unscaled_xte_nfeat = len(unscaled_features_test.columns)  - 1
 	
 	unscaled_x = pd.concat([unscaled_features_train, unscaled_features_test], ignore_index=True)
+	'''
 
 	'''
 	if scaled_nfeat != unscaled_xtr_nfeat or unscaled_xtr_nfeat != unscaled_xte_nfeat:
@@ -97,15 +109,17 @@ def main(argv):
 	#unk_features_train_fname         = basedir + 'training-set-features-2019-05-17_16.59.52-feature_count-225.csv'
 	#unscaled_x                       = pd.read_csv(unk_features_train_fname)
 	#df = scaled_features_train_test
-	df = unscaled_x
-	for col in range(scaled_nfeat):
+	#df = unscaled_x
+	#df = train_unscaled_stft
+	df = test_unscaled_stft
+	for col in range(len(df.columns)):
 		ax = plt.gca()
 		ax.set_xlabel("Test Sample")
 		ax.set_ylabel("Value")
 		ax.legend(df.columns[col])
 		df.iloc[ : , col].plot(kind='line', ax=ax, sharex=True, legend=True)
 		ax = plt.gca()
-		good_old_features_train.iloc[ : , -1].plot(kind='line', ax=ax, sharex=True, legend=True)
+		#good_old_features_train.iloc[ : , -1].plot(kind='line', ax=ax, sharex=True, legend=True)
 		#print(df.columns[col]);
 		mng = plt.get_current_fig_manager()
 		#mng.window.state('withdrawn')

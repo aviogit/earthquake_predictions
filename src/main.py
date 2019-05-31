@@ -55,7 +55,7 @@ def predict_single(model):
 	submission.to_csv('submission.csv')
 
 
-def create_labeled_test_set():
+def create_labeled_test_set(config):
 	submission_avg = pd.read_csv(
 		'./submissions/submissions-avg.csv',				# Ok, let's try to read a "crafted" average submission
 		index_col='seg_id',						# (among our best two) and let's try to use TTF values
@@ -72,6 +72,7 @@ def create_labeled_test_set():
 		test_df     = pd.read_csv(base_dir + '/test/' + seg_id + '.csv')
 		labeled_seg = pd.concat([test_df, avg_ttf_df], axis=1)		# we concat two columns, the TTF one with always the same value
 		segs.append(labeled_seg)					# because the features extractor uses just the last TTF value
+
 	print(f'Performing df.concat of {nsegs} segments...')			# when include_y=True is passed as parameter
 	df = pd.concat(segs, ignore_index=True)
 	print(df[0:2])
@@ -114,6 +115,23 @@ def drop_useless_features(df):
 
 	print(f'Dropped {initial_featurecount-len(df.columns)} features, now dataset has shape: {df.shape}')
 	return len(df.columns)
+
+
+def drop_useless_features_below_score(df, config):
+		initial_featurecount = len(df.columns)
+		score_threshold = config.do_drop_useless_features_below_score
+		score_fname = config.do_drop_useless_features_score_file
+		scores = pd.read_csv(score_fname)
+		scores.drop(columns=['Unnamed: 0'], inplace=True)
+		scores = scores[scores['Value'] >= score_threshold]
+		#print(scores['Feature'])
+		important_features = scores['Feature'].tolist()
+		important_features.append('mean')
+		#print(important_features)
+		df = df[important_features]
+		#print(df)
+		print(f'Dropped {initial_featurecount-len(df.columns)} features, now dataset has shape: {df.shape}')
+		return len(df.columns)
 
 def differentiate_features_series(features, feature_count, fname_prefix_to_save_to=None):
 		features_diff = features.iloc[ : , 1:feature_count].diff()
@@ -200,7 +218,7 @@ def create_standard_features_for_training_set(fname, config):
 	feature_count = len(features.columns)-1
 
 	# build the common suffix for every output file in this run
-	base_name = base_time + '-feature_count-' + str(feature_count)
+	base_name = config.base_time + '-feature_count-' + str(feature_count)
 
 	# don't forget to save our features if we didn't loaded them before!
 	features_fname = base_dir + '/training-set-features-' + base_name + '.csv'
@@ -212,7 +230,7 @@ def create_standard_features_for_training_set(fname, config):
 
 def create_standard_features_for_test_set(config):
 	# Process test set
-	labeled_test_set       = create_labeled_test_set()
+	labeled_test_set       = create_labeled_test_set(config)
 
 	if config.do_convolution_instead_of_manual_FE:
 		convolve_acoustic_data(labeled_test_set, 'test-set', config.segment_size, chip_size)
@@ -221,16 +239,19 @@ def create_standard_features_for_test_set(config):
 	test_set_features      = get_stat_summaries(labeled_test_set, config.segment_size, do_fft=True, do_stft=True, run_parallel=config.create_features_in_parallel, include_y=True)
 
 	test_set_feature_count = len(test_set_features.columns)-1
-	print(test_set_features)
-	print(test_set_feature_count)
 
-	base_name = base_time + '-feature_count-' + str(test_set_feature_count)
+	#print(test_set_features)
+	#print(test_set_feature_count)
+
+	base_name = config.base_time + '-feature_count-' + str(test_set_feature_count)
 
 	# don't forget to save our features if we didn't loaded them before!
 	test_set_features_fname = base_dir + '/test-set-features-' + base_name + '.csv'
 	test_set_features.to_csv(test_set_features_fname)
 	print(f'Test set features have been saved to: {test_set_features_fname}')
 	# --------------------
+
+	return test_set_features, test_set_feature_count
 
 
 
@@ -278,6 +299,8 @@ def main(argv):
 		do_load_model:				bool	= False
 		do_differentiate_features_series:	bool	= False
 		do_drop_useless_features:		bool	= False
+		do_drop_useless_features_below_score:	int	= -1
+		do_drop_useless_features_score_file:	str	= ''
 		do_convolution_instead_of_manual_FE:	bool	= False
 		do_logistic_regression:			bool	= False
 		do_rescale:				bool	= False
@@ -298,32 +321,34 @@ def main(argv):
 
 	config.segment_size				= 150000
 
-	config.do_create_standard_features		= True
-	config.do_load_standard_features		= False
+	config.do_create_standard_features		= False
+	config.do_load_standard_features		= True
 
 	config.do_train_model				= True
 	config.do_load_model				= False
 
 	config.do_differentiate_features_series		= False
-	config.do_drop_useless_features			= True
+	config.do_drop_useless_features			= False
+	config.do_drop_useless_features_below_score	= -1
+	config.do_drop_useless_features_score_file	= base_dir + '/lgbm-all-330-feats-totally-wrong-predictions/lgbm-feature-importances.csv'
 	config.do_rescale				= True			# Bring everything in the range [0, 1]
 
 	config.do_convolution_instead_of_manual_FE	= False
 	config.do_logistic_regression			= False
 
-	config.model					= 'xgboost'
+	config.model					= 'lstm-128'
 	config.do_use_lgbm_model			= False
-	config.do_use_xgboost_model			= True
+	config.do_use_xgboost_model			= False
 	config.do_use_timedistributed			= False
 	config.do_use_convlstm				= False
 
 	config.do_load_signal_images			= False
 
-	config.create_features_in_parallel		= False
+	config.create_features_in_parallel		= True
 
 	config.do_predict				= True
 	# Training parameters
-	config.batch_size				= 1024
+	config.batch_size				= 8
 	config.epochs					= 4000
 
 
@@ -333,8 +358,8 @@ def main(argv):
 
 	# Perform "manual" features engineering (FE)
 	if config.do_create_standard_features:
-		#fname = base_dir + '/train.csv.gz'
-		fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# uncomment this to do a quicktest before every major change
+		fname = base_dir + '/train.csv.gz'
+		#fname = base_dir + '/LANL-Earthquake-Prediction-series-no-000.csv.gz'	# uncomment this to do a quicktest before every major change
 	
 		features, feature_count				= create_standard_features_for_training_set	(fname, config)
 		test_set_features, test_set_feature_count	= create_standard_features_for_test_set		(config)
@@ -352,6 +377,9 @@ def main(argv):
 		if config.do_drop_useless_features:
 			feature_count		= drop_useless_features(features)
 			test_set_feature_count	= drop_useless_features(test_set_features)
+		if drop_useless_features_below_score != -1:
+			feature_count		= drop_useless_features_below_score(features, config)
+			test_set_feature_count	= drop_useless_features_below_score(test_set_features, config)
 
 		if config.do_differentiate_features_series:
 			differentiate_features_series(features,          feature_count,          '/tmp/features')
@@ -360,6 +388,8 @@ def main(argv):
 		# These are still DataFrames
 		training_set = features
 		test_set     = test_set_features
+
+
 
 	# Check if we loaded/created the same amount of features for training set and test set
 	if feature_count != test_set_feature_count:
@@ -423,7 +453,7 @@ def main(argv):
 
 			if not config.do_load_model:
 				print(20*'*', 'Start of training', 20*'*')
-				model_name           = base_dir + '/earthquake-predictions-CNN-LSTM-keras-model-'     + base_time + '.hdf5'
+				model_name           = base_dir + '/earthquake-predictions-CNN-LSTM-keras-model-'     + config.base_time + '.hdf5'
 				model.cnn_lstm_fit(training_set, labels,
 						batch_size=batch_size, epochs=epochs,	# only two params (except for the inner model structure)
 						model_name=model_name)			# just for saving the model
@@ -457,7 +487,7 @@ def main(argv):
 
 			predictions = model.predict(test_set)
 			print(20*'*', 'Start of prediction ', 20*'*')
-			#predict_single_on_scaled_features(model, test_set, base_time)
+			#predict_single_on_scaled_features(model, test_set, config.base_time)
 			'''
 			for i in range(len(test_set[0])):
 				prediction = model.predict(test_set[i])

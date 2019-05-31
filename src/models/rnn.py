@@ -383,17 +383,19 @@ class Rnn:
 		#self.model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
 		#self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), epochs=epochs, batch_size=batch_size)
 		if self.config.do_use_lgbm_model or self.config.do_use_xgboost_model:
-			print(80*'*', 'About to train!!!')
+			print(80*'*', 'These are the shape of training and validation sets before training.')
 			print(x_train.shape)
 			print(y_train.shape)
 			print(x_valid.shape)
 			print(y_valid.shape)
 			print(80*'*')
 			eval_set = [(x_valid, y_valid)]
-			self.model.fit(x_train, y_train, eval_set=eval_set, eval_metric='mae', verbose=1000, early_stopping_rounds=2000)
-			#self.model.plot_lgbm_feature_importance(training_set)
+			self.model.fit(x_train, y_train, eval_set=eval_set, eval_metric='mae', verbose=5, early_stopping_rounds=2000)
+			if self.config.do_use_lgbm_model:
+				self.plot_lgbm_feature_importance(training_set)
 			#self.model.show_correlation_map(training_set)
 			return x_train, y_train, x_valid, y_valid
+
 
 		#self.model.fit(x_train, y_train, callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
 		self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
@@ -503,8 +505,9 @@ class Rnn:
 		y_train = np.reshape(y_train, (y_train.shape[0], 1))
 		y_valid = np.reshape(y_valid, (y_valid.shape[0], 1))
 		'''
-		y_train = y_train.reshape((-1,1))
-		y_valid = y_valid.reshape((-1,1))
+		if self.config.do_use_xgboost_model:
+			y_train = y_train.reshape((-1,1))
+			y_valid = y_valid.reshape((-1,1))
 
 
 		print(f'x_train.shape: {x_train.shape}')
@@ -575,14 +578,14 @@ class Rnn:
 
 		# sorted(zip(clf.feature_importances_, X.columns), reverse=True)
 		feature_imp = pd.DataFrame(sorted(zip(clf.feature_importances_,X.columns)), columns=['Value','Feature'])
-		submission.to_csv('/tmp/lgbm_importances-01.csv')
+		feature_imp.to_csv('/tmp/lgbm-feature-importances.csv')
 		
 		plt.figure(figsize=(20, 10))
 		sns.barplot(x="Value", y="Feature", data=feature_imp.sort_values(by="Value", ascending=False))
 		plt.title('LightGBM Features (avg over folds)')
 		plt.tight_layout()
 		#plt.show()
-		plt.savefig('/tmp/lgbm_importances-01.png')
+		plt.savefig('/tmp/lgbm-feature-importances.png')
 
 	def show_correlation_map(self, training_set):
 		colormap = plt.cm.RdBu

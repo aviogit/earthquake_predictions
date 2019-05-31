@@ -191,80 +191,91 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
         #fft_data = pd.Series(f_amp)
         #stft_data, stft_data_t, stft_data_Zxx = stft(step_data, nperseg=step_data.shape[0])
 
-        #freqs, times, spec = stft(step_data, 4000000, nperseg=step_data.shape[0])
-        freqs, times, spec = stft(step_data, 4000000, nperseg=4096)
-        # Log spectrogram
-        print(80*'*')
-        print(np.abs(spec))
-        print(80*'*')
-        amp = np.log(np.abs(spec)+1e-10)
-        print(np.abs(amp))
-        print(80*'*')
+        freqs, times, spec = stft(step_data, 4000000, nperseg=step_data.shape[0])
 
-        print(step_data.shape)
-        print(spec.shape)
-        print(amp.shape)
+        if debug:
+            # Log spectrogram
+            amp = np.log(np.abs(spec)+1e-10)
 
-        ax = plt.gca()
-        ax.imshow(np.abs(spec), aspect='auto', origin='lower', 
-                   extent=[times.min(), times.max(), freqs.min(), freqs.max()])
-        ax.set_title('Spectrogram')
-        ax.set_ylabel('Freqs in Hz')
-        ax.set_xlabel('Seconds')
-        plt.show()
-        plt.close()
-        ax = plt.gca()
-        ax.imshow(amp, aspect='auto', origin='lower', 
-                   extent=[times.min(), times.max(), freqs.min(), freqs.max()])
-        ax.set_title('Amplitude Spectrogram')
-        ax.set_ylabel('Freqs in Hz')
-        ax.set_xlabel('Seconds')
-        plt.show()
-        plt.close()
+            #freqs, times, spec = stft(step_data, 4000000, nperseg=4096)				<-- This is the TRUE spectrogram
+            print(80*'*')
+            print(np.abs(spec))
+            print(80*'*')
+            print(np.abs(amp))
+            print(80*'*')
 
-        stft_data = pd.DataFrame(amp)
-        print(stft_data)
-        #sys.exit()
-        return
+            print(step_data.shape)
+            print(spec.shape)
+            print(amp.shape)
 
-        stat_summary.loc[index, 'stft_mean']             = stft_data.mean()
-        stat_summary.loc[index, 'stft_std']              = stft_data.std()
-        stat_summary.loc[index, 'stft_min']              = stft_data.min()
-        stat_summary.loc[index, 'stft_max']              = stft_data.max()
+            ax = plt.gca()
+            ax.imshow(np.abs(spec), aspect='auto', origin='lower', 
+                       extent=[times.min(), times.max(), freqs.min(), freqs.max()])
+            ax.set_title('Spectrogram')
+            ax.set_ylabel('Freqs in Hz')
+            ax.set_xlabel('Seconds')
+            plt.grid(False)
+            plt.show()
+            plt.close()
+            ax = plt.gca()
+            ax.imshow(amp, aspect='auto', origin='lower', 
+                       extent=[times.min(), times.max(), freqs.min(), freqs.max()])
+            ax.set_title('Amplitude Spectrogram')
+            ax.set_ylabel('Freqs in Hz')
+            ax.set_xlabel('Seconds')
+            plt.grid(False)
+            plt.show()
+            plt.close()
 
-        stat_summary.loc[index, 'stft_q95']              = np.quantile(stft_data, 0.95)
-        stat_summary.loc[index, 'stft_q99']              = np.quantile(stft_data, 0.99)
-        stat_summary.loc[index, 'stft_q05']              = np.quantile(stft_data, 0.05)
-        stat_summary.loc[index, 'stft_q01']              = np.quantile(stft_data, 0.01)
+            amp_data = pd.DataFrame(np.abs(amp))
+            print(amp_data)
 
-        stat_summary.loc[index, 'stft_std_first5k']      = stft_data[:step_size_large].mean()
-        stat_summary.loc[index, 'stft_mean_first5k']     = stft_data[:step_size_large].std()
-        stat_summary.loc[index, 'stft_min_first5k']      = stft_data[:step_size_large].min()
-        stat_summary.loc[index, 'stft_max_first5k']      = stft_data[:step_size_large].max()
+        spec_data = pd.DataFrame(np.abs(spec))
 
-        stat_summary.loc[index, 'stft_std_last5k']       = stft_data[-step_size_large:].mean()
-        stat_summary.loc[index, 'stft_mean_last5k']      = stft_data[-step_size_large:].std()
-        stat_summary.loc[index, 'stft_min_last5k']       = stft_data[-step_size_large:].min()
-        stat_summary.loc[index, 'stft_max_last5k']       = stft_data[-step_size_large:].max()
+        if debug:
+            print(spec_data)
 
-        stat_summary.loc[index, 'stft_std_first1k']      = stft_data[:step_size_small].mean()
-        stat_summary.loc[index, 'stft_mean_first1k']     = stft_data[:step_size_small].std()
-        stat_summary.loc[index, 'stft_min_first1k']      = stft_data[:step_size_small].min()
-        stat_summary.loc[index, 'stft_max_first1k']      = stft_data[:step_size_small].max()
+        parts = ['_left', '_right']
+        for spec_idx in [0, 1]:
+                stft_data = spec_data[spec_idx]
+                stat_summary.loc[index, 'stft_mean'+parts[spec_idx]]             = stft_data.mean()
+                stat_summary.loc[index, 'stft_std'+parts[spec_idx]]              = stft_data.std()
+                stat_summary.loc[index, 'stft_min'+parts[spec_idx]]              = stft_data.min()
+                stat_summary.loc[index, 'stft_max'+parts[spec_idx]]              = stft_data.max()
 
-        stat_summary.loc[index, 'stft_std_last1k']       = stft_data[-step_size_small:].mean()
-        stat_summary.loc[index, 'stft_mean_last1k']      = stft_data[-step_size_small:].std()
-        stat_summary.loc[index, 'stft_min_last1k']       = stft_data[-step_size_small:].min()
-        stat_summary.loc[index, 'stft_max_last1k']       = stft_data[-step_size_small:].max()
+                stat_summary.loc[index, 'stft_q95'+parts[spec_idx]]              = np.quantile(stft_data, 0.95)
+                stat_summary.loc[index, 'stft_q99'+parts[spec_idx]]              = np.quantile(stft_data, 0.99)
+                stat_summary.loc[index, 'stft_q05'+parts[spec_idx]]              = np.quantile(stft_data, 0.05)
+                stat_summary.loc[index, 'stft_q01'+parts[spec_idx]]              = np.quantile(stft_data, 0.01)
 
-        stat_summary.loc[index, 'stft_trend']            = _get_trend(stft_data)
-        stat_summary.loc[index, 'stft_trend_abs']        = _get_trend(stft_data, True)
+                stat_summary.loc[index, 'stft_std_first5k'+parts[spec_idx]]      = stft_data[:step_size_large].mean()
+                stat_summary.loc[index, 'stft_mean_first5k'+parts[spec_idx]]     = stft_data[:step_size_large].std()
+                stat_summary.loc[index, 'stft_min_first5k'+parts[spec_idx]]      = stft_data[:step_size_large].min()
+                stat_summary.loc[index, 'stft_max_first5k'+parts[spec_idx]]      = stft_data[:step_size_large].max()
 
-        stat_summary.loc[index, 'stft_count_big']        = len(stft_data[np.abs(stft_data) > 500])
-        stat_summary.loc[index, 'stft_hilbert_mean']     = np.abs(hilbert(stft_data)).mean()
+                stat_summary.loc[index, 'stft_std_last5k'+parts[spec_idx]]       = stft_data[-step_size_large:].mean()
+                stat_summary.loc[index, 'stft_mean_last5k'+parts[spec_idx]]      = stft_data[-step_size_large:].std()
+                stat_summary.loc[index, 'stft_min_last5k'+parts[spec_idx]]       = stft_data[-step_size_large:].min()
+                stat_summary.loc[index, 'stft_max_last5k'+parts[spec_idx]]       = stft_data[-step_size_large:].max()
 
-        hann_150 = hann(150)
-        stat_summary.loc[index, 'stft_hann_window_mean'] = (convolve(stft_data, hann_150, mode='same') / sum(hann_150)).mean()
+                stat_summary.loc[index, 'stft_std_first1k'+parts[spec_idx]]      = stft_data[:step_size_small].mean()
+                stat_summary.loc[index, 'stft_mean_first1k'+parts[spec_idx]]     = stft_data[:step_size_small].std()
+                stat_summary.loc[index, 'stft_min_first1k'+parts[spec_idx]]      = stft_data[:step_size_small].min()
+                stat_summary.loc[index, 'stft_max_first1k'+parts[spec_idx]]      = stft_data[:step_size_small].max()
+
+                stat_summary.loc[index, 'stft_std_last1k'+parts[spec_idx]]       = stft_data[-step_size_small:].mean()
+                stat_summary.loc[index, 'stft_mean_last1k'+parts[spec_idx]]      = stft_data[-step_size_small:].std()
+                stat_summary.loc[index, 'stft_min_last1k'+parts[spec_idx]]       = stft_data[-step_size_small:].min()
+                stat_summary.loc[index, 'stft_max_last1k'+parts[spec_idx]]       = stft_data[-step_size_small:].max()
+
+                stat_summary.loc[index, 'stft_trend'+parts[spec_idx]]            = _get_trend(stft_data)
+                stat_summary.loc[index, 'stft_trend_abs'+parts[spec_idx]]        = _get_trend(stft_data, True)
+
+                stat_summary.loc[index, 'stft_count_big'+parts[spec_idx]]        = len(stft_data[np.abs(stft_data) > 500])
+                stat_summary.loc[index, 'stft_hilbert_mean'+parts[spec_idx]]     = np.abs(hilbert(stft_data)).mean()
+
+                hann_150 = hann(150)
+                stat_summary.loc[index, 'stft_hann_window_mean'+parts[spec_idx]] = (convolve(stft_data, hann_150, mode='same') / sum(hann_150)).mean()
 
 
     absolutes = np.abs(step_data)
@@ -467,7 +478,7 @@ def _append_features(index: int, stat_summary: pd.core.frame.DataFrame, step_dat
         stat_summary.loc[index, 'change_rate_roll_mean' + windows_str] = np.abs(roll_mean).max()
 
 
-def _append_features_wrapper(data, aggregate_length, do_fft, do_stft, i, stat_summary, include_y, windows_list):
+def _append_features_wrapper(data, aggregate_length, do_fft, do_stft, i, stat_summary, include_y, windows_list, subtract_mean_to_differentiate_series=False):
 	process = psutil.Process(os.getpid())
 	ram	= process.memory_info()[0] / float(2 ** 20)
 
@@ -476,12 +487,14 @@ def _append_features_wrapper(data, aggregate_length, do_fft, do_stft, i, stat_su
 
 	step_data = data[i:i + aggregate_length]
 
-	# mmm after all, don't know if this is such a good idea...
-	step_data_mean    = step_data.mean()
-	step_data_mean[1] = 0
+	if subtract_mean_to_differentiate_series:
+		# mmm after all, don't know if this is such a good idea...
+		step_data_mean    = step_data.mean()
+		step_data_mean[1] = 0
 
-	print(f'Subtracting mean value {step_data_mean[0]} from the acoustic samples in the current chunk...')
-	step_data = step_data - step_data_mean
+		# Actually this is a really bad idea, predictions are all wrong doing this
+		print(f'Subtracting mean value {step_data_mean[0]} from the acoustic samples in the current chunk...')
+		step_data = step_data - step_data_mean
 
 	_append_features(index, stat_summary, step_data.iloc[:, 0], windows_list, do_fft, do_stft)
 
@@ -509,7 +522,9 @@ def get_stat_summaries(data: pd.core.frame.DataFrame, aggregate_length: int = 15
               cols.extend([ 'fft_imag_mean', 'fft_imag_std', 'fft_imag_min', 'fft_imag_max', 'fft_imag_q95', 'fft_imag_q99', 'fft_imag_q05', 'fft_imag_q01', 'fft_imag_std_first5k', 'fft_imag_mean_first5k', 'fft_imag_min_first5k', 'fft_imag_max_first5k', 'fft_imag_std_last5k', 'fft_imag_mean_last5k', 'fft_imag_min_last5k', 'fft_imag_max_last5k', 'fft_imag_std_first1k', 'fft_imag_mean_first1k', 'fft_imag_min_first1k', 'fft_imag_max_first1k', 'fft_imag_std_last1k', 'fft_imag_mean_last1k', 'fft_imag_min_last1k', 'fft_imag_max_last1k', 'fft_imag_trend', 'fft_imag_trend_abs', 'fft_imag_count_big', 'fft_imag_hilbert_mean', 'fft_imag_hann_window_mean' ])
 
          if do_stft:
-              cols.extend([ 'stft_mean', 'stft_std', 'stft_min', 'stft_max', 'stft_q95', 'stft_q99', 'stft_q05', 'stft_q01', 'stft_std_first5k', 'stft_mean_first5k', 'stft_min_first5k', 'stft_max_first5k', 'stft_std_last5k', 'stft_mean_last5k', 'stft_min_last5k', 'stft_max_last5k', 'stft_std_first1k', 'stft_mean_first1k', 'stft_min_first1k', 'stft_max_first1k', 'stft_std_last1k', 'stft_mean_last1k', 'stft_min_last1k', 'stft_max_last1k', 'stft_trend', 'stft_trend_abs', 'stft_count_big', 'stft_hilbert_mean', 'stft_hann_window_mean' ])
+             parts = ['_left', '_right']
+             for spec_idx in [0, 1]:
+                 cols.extend([ 'stft_mean'+parts[spec_idx], 'stft_std'+parts[spec_idx], 'stft_min'+parts[spec_idx], 'stft_max'+parts[spec_idx], 'stft_q95'+parts[spec_idx], 'stft_q99'+parts[spec_idx], 'stft_q05'+parts[spec_idx], 'stft_q01'+parts[spec_idx], 'stft_std_first5k'+parts[spec_idx], 'stft_mean_first5k'+parts[spec_idx], 'stft_min_first5k'+parts[spec_idx], 'stft_max_first5k'+parts[spec_idx], 'stft_std_last5k'+parts[spec_idx], 'stft_mean_last5k'+parts[spec_idx], 'stft_min_last5k'+parts[spec_idx], 'stft_max_last5k'+parts[spec_idx], 'stft_std_first1k'+parts[spec_idx], 'stft_mean_first1k'+parts[spec_idx], 'stft_min_first1k'+parts[spec_idx], 'stft_max_first1k'+parts[spec_idx], 'stft_std_last1k'+parts[spec_idx], 'stft_mean_last1k'+parts[spec_idx], 'stft_min_last1k'+parts[spec_idx], 'stft_max_last1k'+parts[spec_idx], 'stft_trend'+parts[spec_idx], 'stft_trend_abs'+parts[spec_idx], 'stft_count_big'+parts[spec_idx], 'stft_hilbert_mean'+parts[spec_idx], 'stft_hann_window_mean'+parts[spec_idx] ])
 
          cols.extend([ 'abs_mean', 'abs_std', 'abs_min', 'abs_max', 'q95', 'q99', 'q05', 'q01', 'std_first5k', 'mean_first5k', 'min_first5k', 'max_first5k', 'std_last5k', 'mean_last5k', 'min_last5k', 'max_last5k', 'std_first1k', 'mean_first1k', 'min_first1k', 'max_first1k', 'std_last1k', 'mean_last1k', 'min_last1k', 'max_last1k', 'trend', 'trend_abs', 'count_big', 'hilbert_mean', 'hann_window_mean'])
 
