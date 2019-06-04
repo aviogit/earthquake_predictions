@@ -38,9 +38,9 @@ My last CatBoost-based blended submission scored far worse than what one of my f
 1. (and this is bad news) the "real" data scientists, those with sound statistical skills, not only CS skills stays on the top
 2. "apprentice data scientists" don't stay on top but can still score high on very hard problems. This is the power of machine learning :wink:
 
-![Shake Up Top 10](https://github.com/phillikus/earthquake_predictions/blob/master/plots/private-LB-shake-up-competition.png)
-![Shake Up older Top 10](https://github.com/phillikus/earthquake_predictions/blob/master/plots/shake-up-1.png)
-![Shake Up older Top 10](https://github.com/phillikus/earthquake_predictions/blob/master/plots/shake-up-2.png)
+![Shake Up Top 10](https://github.com/aviogit/earthquake_predictions/blob/master/plots/private-LB-shake-up-competition.png)
+![Shake Up older Top 10](https://github.com/aviogit/earthquake_predictions/blob/master/plots/shake-up-1.png)
+![Shake Up older Top 10](https://github.com/aviogit/earthquake_predictions/blob/master/plots/shake-up-2.png)
 
 Other important lessons learned:
 
@@ -48,4 +48,4 @@ Other important lessons learned:
 2. I need to learn how to do feature engineering and features selection if not automatically (e.g. through CNNs) at least not "by hand" as I did in this competition.
 3. LSTM networks FTW!
 
-![toy dataset vs. real-world datasets](https://github.com/phillikus/earthquake_predictions/blob/master/plots/toy-dataset-vs-real-world-datasets.jpg)
+![toy dataset vs. real-world datasets](https://github.com/aviogit/earthquake_predictions/blob/master/plots/toy-dataset-vs-real-world-datasets.jpg)
