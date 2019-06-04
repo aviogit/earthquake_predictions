@@ -1,0 +1,94 @@
+'''
+	# This is the code -> it plots UNSCALED features from: features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv
+	# and test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv
+	#
+        #scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_14.28.45-feature_count-225.csv'
+        scaled_features_train_test_fname = basedir + 'earthquake-predictions-scaled-features-2019-05-17_16.59.52-feature_count-225.csv'
+        unscaled_features_train_fname    = basedir + 'features-2019-05-15_15.52.59-feature_count-225-batch_size-32-epochs-2000.csv'
+        unscaled_features_test_fname     = basedir + 'test_set_features-2019-05-16_17.10.36-test_set_feature_count-225-batch_size-8-epochs-10000.csv'
+
+        scaled_features_train_test       = pd.read_csv(scaled_features_train_test_fname)
+        unscaled_features_train          = pd.read_csv(unscaled_features_train_fname)
+        unscaled_features_test           = pd.read_csv(unscaled_features_test_fname)
+
+        scaled_features_train_test.drop(columns=['Unnamed: 0'], inplace=True)
+        unscaled_features_train.drop(columns=['Unnamed: 0'], inplace=True)
+        unscaled_features_test.drop(columns=['Unnamed: 0'], inplace=True)
+
+        scaled_nfeat       = len(scaled_features_train_test.columns)
+        unscaled_xtr_nfeat = len(unscaled_features_train.columns) - 1 
+        unscaled_xte_nfeat = len(unscaled_features_test.columns)  - 1 
+    
+        unscaled_x = pd.concat([unscaled_features_train, unscaled_features_test], ignore_index=True)
+
+        if scaled_nfeat != unscaled_xtr_nfeat or unscaled_xtr_nfeat != unscaled_xte_nfeat:
+                print(f"Features mismatch: {scaled_nfeat} vs. {unscaled_xtr_nfeat} vs. {unscaled_xte_nfeat}")
+                sys.exit(1)
+
+        good_old_features_train_fname    = basedir + 'features-2019-05-13_20.12.31-feature_count-151-batch_size-32-epochs-1000.csv'
+        good_old_features_train          = pd.read_csv(good_old_features_train_fname)
+        #unscaled_x                      = good_old_features_train
+        #unk_features_train_fname         = basedir + 'training-set-features-2019-05-17_16.59.52-feature_count-225.csv'
+        #unscaled_x                       = pd.read_csv(unk_features_train_fname)
+        #df = scaled_features_train_test
+        df = unscaled_x
+        for col in range(scaled_nfeat):
+                ax = plt.gca()
+                ax.set_xlabel("Test Sample")
+                ax.set_ylabel("Value")
+                ax.legend(df.columns[col])
+                df.iloc[ : , col].plot(kind='line', ax=ax, sharex=True, legend=True)
+                ax = plt.gca()
+                good_old_features_train.iloc[ : , -1].plot(kind='line', ax=ax, sharex=True, legend=True)
+'''
+
+
+
+- mean
++ std (andrebbe unbiased solo sul training set)
+- fft_min
+- fft_max
+- fft_min_first5k
+- fft_max_first5k
+- fft_min_last5k
+- fft_mean_first5k
+- fft_max_first1k
+- fft_trend
+- fft_trend_abs
+- tutti gli stft_
+- abs_min
+- std_first5k
+- std_last5k
+- std_first1k
+- std_last1k
+- trend
+- trend_abs
+- hann_window_mean
+- meanA
+- varAnorm
+- skewA
+- kurtAnorm
+- meanB
+- varBnorm
+- skewB
+- kurtBnorm
+++++++++ q08A is the best feature I've ever seen!!! :D:D:D
++++ f00pA is very good as well!
+
+- min_roll_std10
+- change_abs_roll_std10
+- mean_roll_mean10
+- change_abs_roll_mean10
+
+- min_roll_std100
+- change_abs_roll_std100
+- mean_roll_mean100
+- change_abs_roll_mean100
+
+++++++++ q05_roll_mean100 is the even bester (;D;D;D) feature I've ever seen!!!
+
+
+- min_roll_std1000
+- change_abs_roll_std1000
+- mean_roll_mean1000
+- change_abs_roll_mean1000

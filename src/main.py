@@ -126,12 +126,19 @@ def drop_useless_features_below_score(df, config):
 		scores = scores[scores['Value'] >= score_threshold]
 		#print(scores['Feature'])
 		important_features = scores['Feature'].tolist()
-		important_features.append('mean')
+		#important_features.append('mean')
+		important_features.append('time_to_failure')		# can you believe that I've run 10 experiments without this?
 		#print(important_features)
 		df = df[important_features]
 		#print(df)
+		print(100*'#')
+		print(100*'-')
+		print(100*'*')
 		print(f'Dropped {initial_featurecount-len(df.columns)} features, now dataset has shape: {df.shape}')
-		return len(df.columns)
+		print(100*'*')
+		print(100*'-')
+		print(100*'#')
+		return df, len(df.columns)-1
 
 def differentiate_features_series(features, feature_count, fname_prefix_to_save_to=None):
 		features_diff = features.iloc[ : , 1:feature_count].diff()
@@ -187,10 +194,16 @@ def convolve_acoustic_data(df, df_name, segment_size, chip_size=4096, for_humans
 def load_standard_features(feat_fname, test_set_feat_fname):
 	print(f'Loading training set features from file: {feat_fname}')
 	features          = pd.read_csv(feat_fname)
-	features.drop(columns=['Unnamed: 0'], inplace=True)
+	if 'Unnamed: 0' in features.columns:
+		features.drop(columns=['Unnamed: 0'], inplace=True)
 	print(f'Loading test     set features from file: {test_set_feat_fname}')
 	test_set_features = pd.read_csv(test_set_feat_fname)
-	test_set_features.drop(columns=['Unnamed: 0'], inplace=True)
+	if 'Unnamed: 0' in test_set_features.columns:
+		test_set_features.drop(columns=['Unnamed: 0'], inplace=True)
+	if 'seg_id' in test_set_features.columns:
+		test_set_features.drop(columns=['seg_id'], inplace=True)
+	if 'seg_id.1' in test_set_features.columns:
+		test_set_features.drop(columns=['seg_id.1'], inplace=True)
 	
 	print(features)
 	print(test_set_features)
@@ -329,14 +342,18 @@ def main(argv):
 
 	config.do_differentiate_features_series		= False
 	config.do_drop_useless_features			= False
-	config.do_drop_useless_features_below_score	= -1
-	config.do_drop_useless_features_score_file	= base_dir + '/lgbm-all-330-feats-totally-wrong-predictions/lgbm-feature-importances.csv'
+	config.do_drop_useless_features_below_score	= 500
+	#config.do_drop_useless_features_score_file	= base_dir + '/lgbm-all-330-feats-totally-wrong-predictions/lgbm-feature-importances.csv'
+	config.do_drop_useless_features_score_file	= '/mnt/ros-data/datasets/LANL-Earthquake-Prediction/new-featureset-864/features-importance/lgbm-feature-importances.csv'
 	config.do_rescale				= True			# Bring everything in the range [0, 1]
 
 	config.do_convolution_instead_of_manual_FE	= False
 	config.do_logistic_regression			= False
 
-	config.model					= 'lstm-128'
+	#config.model					= 'lstm-128'
+	#config.model					= 'lstm-64-double'
+	config.model					= 'catboost'
+	#config.model					= 'lgbm'
 	config.do_use_lgbm_model			= False
 	config.do_use_xgboost_model			= False
 	config.do_use_timedistributed			= False
@@ -348,7 +365,7 @@ def main(argv):
 
 	config.do_predict				= True
 	# Training parameters
-	config.batch_size				= 8
+	config.batch_size				= 16
 	config.epochs					= 4000
 
 
@@ -377,9 +394,9 @@ def main(argv):
 		if config.do_drop_useless_features:
 			feature_count		= drop_useless_features(features)
 			test_set_feature_count	= drop_useless_features(test_set_features)
-		if drop_useless_features_below_score != -1:
-			feature_count		= drop_useless_features_below_score(features, config)
-			test_set_feature_count	= drop_useless_features_below_score(test_set_features, config)
+		if config.do_drop_useless_features_below_score != -1:
+			features, feature_count				= drop_useless_features_below_score(features, config)
+			test_set_features, test_set_feature_count	= drop_useless_features_below_score(test_set_features, config)
 
 		if config.do_differentiate_features_series:
 			differentiate_features_series(features,          feature_count,          '/tmp/features')
@@ -506,7 +523,7 @@ def main(argv):
 	if config.do_load_model:
 		model_name = argv[3]
 
-		model = Rnn(config, feature_count-1)			# Because time_to_failure is our y!
+		model = Rnn(config, feature_count)			# Because time_to_failure is our y!
 		x_train, y_train, x_valid, y_valid = model.create_dataset(training_set, test_set)
 
 		print(20*'*', 'Loading pre-trained Keras model', 20*'*')
@@ -519,9 +536,51 @@ def main(argv):
 		model_name           = base_dir + '/earthquake-predictions-keras-model-'     + base_name + '.hdf5'
 		scaled_features_name = base_dir + '/earthquake-predictions-scaled-features-' + base_name + '.csv'
 
+
 		print(20*'*', 'Start of training', 20*'*')
 		print(20*'*', 'Keras model will be saved to:', model_name, 20*'*')
-		model = Rnn(config, feature_count-1)			# Because time_to_failure is our y!
+		model = Rnn(config, feature_count)			# We already subtracted 1 to take into account time_to_failure
+
+		if config.model == 'lgbm-trimmed':
+			x_train, y_train, x_valid, y_valid = model.create_dataset(training_set, test_set)
+
+			print(x_train.shape)
+			print(y_train.shape)
+			print(x_valid.shape)
+
+			# Not understanding why -2, with -1 we have two 'mean' columns
+			x_train_pd = pd.DataFrame(x_train[:,:-1], index=np.arange(0, len(x_train)), columns=training_set.columns[:-2], dtype=np.float64)
+			y_train_pd = pd.DataFrame(y_train, index=np.arange(0, len(y_train)), columns=training_set.columns[-1:], dtype=np.float64)
+			x_test_pd  = pd.DataFrame(x_valid[:,:-1], index=np.arange(0, len(x_valid)), columns=test_set.columns[:-2],     dtype=np.float64)
+
+			'''
+			print(x_train_pd)
+			print(y_train_pd)
+			print(x_test_pd)
+			for i in x_train_pd.columns:
+				print(i)
+			for i in training_set.columns[:-2]:
+				print(i)
+			sys.exit(0)
+			'''
+
+			model.create_fit_predict_lgbm_trimmed_model(x_train_pd, y_train_pd, x_test_pd)
+			sys.exit(0)
+
+		if config.model == 'catboost':
+			x_train, y_train, x_valid, y_valid = model.create_dataset(training_set, test_set)
+
+			print(x_train.shape)
+			print(y_train.shape)
+			print(x_valid.shape)
+
+			# Not understanding why -2, with -1 we have two 'mean' columns
+			x_train_pd = pd.DataFrame(x_train[:,:-1], index=np.arange(0, len(x_train)), columns=training_set.columns[:-2], dtype=np.float64)
+			y_train_pd = pd.DataFrame(y_train, index=np.arange(0, len(y_train)), columns=training_set.columns[-1:], dtype=np.float64)
+			x_test_pd  = pd.DataFrame(x_valid[:,:-1], index=np.arange(0, len(x_valid)), columns=test_set.columns[:-2],     dtype=np.float64)
+			model.create_fit_predict_catboost_model(x_train_pd, y_train_pd, x_test_pd)
+			sys.exit(0)
+
 
 		x_train, y_train, x_valid, y_valid = model.fit(training_set,	# we may also try to validate our model during training
 				batch_size=config.batch_size,

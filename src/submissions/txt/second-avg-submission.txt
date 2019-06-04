@@ -1,0 +1,17 @@
+./avg-submissions.py submission-orig-20190508.csv submission-2019-05-13-143616-feature_count-93-batch_size-32-epochs-1000-original-model-only-with-normalized-input\[0\,1\].csv submission-2019-05-14_17.44.08-feature_count-151-batch_size-32-epochs-2000-new-model.csv submissions-avg-between-orig-and-2019-05-14_17.44.08-feature_count-151-batch_size-32-epochs-2000-new-model.csv submission-2019-05-20_17.54.40-feature_count-159-submitted-with-score-1.559.csv submission-2019-05-20_22.55.10-feature_count-159-submitted-with-score-1.521.csv
+
+MD5
+91a59bbbcaadfc6fb57f853187d3f5a0  second-submissions-avg.csv
+
+
+seg_id,time_to_failure
+seg_00030f,2.8661427
+seg_0012b5,5.617475
+seg_00184e,4.454057
+seg_003339,7.6219425
+seg_0042cc,6.4901204
+seg_004314,1.1793411
+seg_004cd2,7.230857
+seg_004ee5,4.675921
+seg_004f1f,4.933777
+

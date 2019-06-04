@@ -1,5 +1,8 @@
 import sys
+import os
+
 from datetime import datetime
+from datetime import date
 
 import re
 
@@ -29,6 +32,14 @@ from keras.backend.tensorflow_backend import set_session
 import lightgbm as lgb
 import xgboost  as xgb
 
+
+import scipy.stats
+from scipy.stats import pearsonr
+from sklearn.model_selection import KFold
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error
+
+from catboost import Pool, CatBoostRegressor
 
 # Plot CNN architecture
 import pydot
@@ -67,17 +78,51 @@ class Rnn:
 
 		self.num_features = num_features
 
+		if self.config.model == 'lstm-32':
+			self.create_model_lstm_32(num_features)
+		if self.config.model == 'lstm-64-double':
+			self.create_model_lstm_64_double(num_features)
 		if self.config.model == 'lstm-128':
 			self.create_model_lstm_128(num_features)
 		if self.config.model == 'lstm-512':
 			self.create_model_lstm_512(num_features)
+		if self.config.model == 'lstm-865':
+			self.create_model_lstm_865(num_features)
 		if self.config.model == 'gru':
 			self.create_model_gru(num_features)
 		if self.config.model == 'lgbm':
 			self.create_model_lgbm()
+		if self.config.model == 'lgbm-trimmed':
+			# this is the last day of competition, this model is an all-in-one taken from a Kaggle kernel
+			pass
+		if self.config.model == 'catboost':
+			# this is the last day of competition, this model is an all-in-one taken from a Kaggle kernel
+			pass
 		if self.config.model == 'xgboost':
 			self.create_model_xgboost()
 		
+	def create_model_lstm_32(self, num_features: int):
+		print(f'Creating a new LSTM model with {self.num_features} features and 32 neurons as input layer...')
+		self.model = Sequential()
+		self.model.add(CuDNNLSTM(32, input_shape=(self.num_features, 1)))
+		self.model.add(Dense(64, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.0001), loss="mae")
+		print(self.model.summary())
+
+
+	def create_model_lstm_64_double(self, num_features: int):
+		print(f'Creating a new LSTM model with {self.num_features} features and 64 neurons as input layer...')
+		self.model = Sequential()
+		self.model.add(CuDNNLSTM(64, input_shape=(self.num_features, 1), return_sequences=True))
+		self.model.add(Dropout(0.5))
+		self.model.add(CuDNNLSTM(64))
+		self.model.add(Dropout(0.5))
+		self.model.add(Dense(64, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.0001), loss="mae")
+		print(self.model.summary())
+
 
 	def create_model_lstm_128(self, num_features: int):
 		print(f'Creating a new LSTM model with {self.num_features} features and 128 neurons as input layer...')
@@ -101,6 +146,17 @@ class Rnn:
 
 		self.model = Sequential()
 		self.model.add(CuDNNLSTM(512, input_shape=(self.num_features, 1)))
+		self.model.add(Dropout(0.5))
+		self.model.add(Dense(64, activation='relu'))
+		self.model.add(Dense(1))
+		self.model.compile(optimizer=adam(lr=0.00001), loss="mae")
+		print(self.model.summary())
+
+	def create_model_lstm_865(self, num_features: int):
+		print(f'Creating a new LSTM model with {self.num_features} features and 865 neurons with dropout as input layer...')
+
+		self.model = Sequential()
+		self.model.add(CuDNNLSTM(865, input_shape=(self.num_features, 1)))
 		self.model.add(Dropout(0.5))
 		self.model.add(Dense(64, activation='relu'))
 		self.model.add(Dense(1))
@@ -176,6 +232,229 @@ class Rnn:
 				scale_pos_weight = 1)
 		#.fit(x_train, y_train)
 		#predictions = gbm.predict(x_test)
+
+
+
+
+
+	def create_fit_predict_lgbm_trimmed_model(self, scaled_train_X, train_y, scaled_test_X):
+		print(f'Creating a new LGBM trimmed model with a lot of params...')
+		params = {'num_leaves': 21,
+			'min_data_in_leaf': 20,
+			'objective':'regression',
+			'max_depth': 108,
+			'learning_rate': 0.001,
+			"boosting": "gbdt",
+			"feature_fraction": 0.91,
+			"bagging_freq": 1,
+			"bagging_fraction": 0.91,
+			"bagging_seed": 42,
+			"metric": 'mae',
+			"lambda_l1": 0.1,
+			"verbosity": -1,
+			"random_state": 42}
+
+
+		base_dir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped'
+
+		maes = []
+		rmses = []
+		tr_maes = []
+		tr_rmses = []
+		submission = pd.read_csv(os.path.join(base_dir, 'sample_submission.csv'), index_col='seg_id')
+
+		'''
+		scaled_train_X = pd.read_csv(r'pk8/scaled_train_X_8.csv')
+		df = pd.read_csv(r'pk8/scaled_train_X_8_slope.csv')
+		scaled_train_X = scaled_train_X.join(df)
+
+		scaled_test_X = pd.read_csv(r'pk8/scaled_test_X_8.csv')
+		df = pd.read_csv(r'pk8/scaled_test_X_8_slope.csv')
+		scaled_test_X = scaled_test_X.join(df)
+		'''
+
+		pcol = []
+		pcor = []
+		pval = []
+		'''
+		y = pd.read_csv(r'pk8/train_y_8.csv')['time_to_failure'].values
+		'''
+		y = train_y.copy()['time_to_failure']
+
+		for col in scaled_train_X.columns:
+			'''
+			print(scaled_train_X[col])
+			print(y)
+			print(scaled_train_X[col].shape)
+			print(y.shape)
+			print(f'col: {col}')
+			'''
+			pcol.append(col)
+			pcor.append(abs(pearsonr(scaled_train_X[col], y)[0]))
+			pval.append(abs(pearsonr(scaled_train_X[col], y)[1]))
+
+		df = pd.DataFrame(data={'col': pcol, 'cor': pcor, 'pval': pval}, index=range(len(pcol)))
+		df.sort_values(by=['cor', 'pval'], inplace=True)
+		df.dropna(inplace=True)
+		df = df.loc[df['pval'] <= 0.05]
+		df.to_csv('pearsonr-cor.csv')
+
+		drop_cols = []
+
+		for col in scaled_train_X.columns:
+			if col not in df['col'].tolist():
+				drop_cols.append(col)
+
+		scaled_train_X.drop(labels=drop_cols, axis=1, inplace=True)
+		scaled_test_X.drop(labels=drop_cols, axis=1, inplace=True)
+
+		'''
+		train_y = pd.read_csv(r'pk8/train_y_8.csv')
+		'''
+		predictions = np.zeros(len(scaled_test_X))
+		preds_train = np.zeros(len(scaled_train_X))
+
+		print('shapes of train and test:', scaled_train_X.shape, scaled_test_X.shape)
+
+		n_fold = 6
+		folds = KFold(n_splits=n_fold, shuffle=False, random_state=42)
+
+		for fold_, (trn_idx, val_idx) in enumerate(folds.split(scaled_train_X, train_y.values)):
+			print(f'Working on fold {fold_} with trn_idx = {trn_idx} and val_idx = {val_idx}')
+			strLog = "fold {}".format(fold_)
+			print(strLog)
+
+			X_tr, X_val = scaled_train_X.iloc[trn_idx], scaled_train_X.iloc[val_idx]
+			y_tr, y_val = train_y.iloc[trn_idx], train_y.iloc[val_idx]
+
+			local_model = lgb.LGBMRegressor(**params, n_estimators=60000, n_jobs=-1)
+			local_model.fit(X_tr, y_tr,
+				      eval_set=[(X_tr, y_tr), (X_val, y_val)], eval_metric='mae',
+				      verbose=1000, early_stopping_rounds=200)
+
+			# model = xgb.XGBRegressor(n_estimators=1000,
+			#                                learning_rate=0.1,
+			#                                max_depth=6,
+			#                                subsample=0.9,
+			#                                colsample_bytree=0.67,
+			#                                reg_lambda=1.0, # seems best within 0.5 of 2.0
+			#                                # gamma=1,
+			#                                random_state=777+fold_,
+			#                                n_jobs=12,
+			#                                verbosity=2)
+			# model.fit(X_tr, y_tr)
+
+			# predictions
+			preds = local_model.predict(scaled_test_X)  #, num_iteration=model.best_iteration_)
+			predictions += preds / folds.n_splits
+			preds = local_model.predict(scaled_train_X)  #, num_iteration=model.best_iteration_)
+			preds_train += preds / folds.n_splits
+
+			preds = local_model.predict(X_val)  #, num_iteration=model.best_iteration_)
+
+			# mean absolute error
+			mae = mean_absolute_error(y_val, preds)
+			print('MAE: %.6f' % mae)
+			maes.append(mae)
+
+			# root mean squared error
+			rmse = mean_squared_error(y_val, preds)
+			print('RMSE: %.6f' % rmse)
+			rmses.append(rmse)
+
+			# training for over fit
+			preds = local_model.predict(X_tr)  #, num_iteration=model.best_iteration_)
+
+			mae = mean_absolute_error(y_tr, preds)
+			print('Tr MAE: %.6f' % mae)
+			tr_maes.append(mae)
+
+			rmse = mean_squared_error(y_tr, preds)
+			print('Tr RMSE: %.6f' % rmse)
+			tr_rmses.append(rmse)
+
+		print('MAEs', maes)
+		print('MAE mean: %.6f' % np.mean(maes))
+		print('RMSEs', rmses)
+		print('RMSE mean: %.6f' % np.mean(rmses))
+
+		print('Tr MAEs', tr_maes)
+		print('Tr MAE mean: %.6f' % np.mean(tr_maes))
+		print('Tr RMSEs', rmses)
+		print('Tr RMSE mean: %.6f' % np.mean(tr_rmses))
+
+		submission.time_to_failure = predictions
+		submission.to_csv('submission_xgb_slope_pearson_6fold.csv')  # index needed, it is seg id
+
+		pr_tr = pd.DataFrame(data=preds_train, columns=['time_to_failure'], index=range(0, preds_train.shape[0]))
+		pr_tr.to_csv(r'preds_tr_xgb_slope_pearson_6fold.csv', index=False)
+		print('Train shape: {}, Test shape: {}, Y shape: {}'.format(scaled_train_X.shape, scaled_test_X.shape, train_y.shape))
+ 
+# do this in the IDE, call the function above
+# if __name__ == "__main__":
+#     lgb_trimmed_model()
+
+
+
+	def create_fit_predict_catboost_model(self, train_X, train_y, test_X):
+		train_columns = train_X.columns
+		n_fold = 5
+		folds = KFold(n_splits=n_fold, shuffle = True, random_state=42)
+		
+		oof = np.zeros(len(train_X))
+		train_score = []
+		fold_idxs = []
+		# if PREDICTION: 
+		predictions = np.zeros(len(test_X))
+		
+		feature_importance_df = pd.DataFrame()
+		#run model
+		for fold_, (trn_idx, val_idx) in enumerate(folds.split(train_X,train_y.values)):
+			strLog = "fold {}".format(fold_)
+			print(strLog)
+			fold_idxs.append(val_idx)
+
+			X_tr, X_val = train_X[train_columns].iloc[trn_idx], train_X[train_columns].iloc[val_idx]
+			y_tr, y_val = train_y.iloc[trn_idx], train_y.iloc[val_idx]
+
+			model = CatBoostRegressor(n_estimators=25000, verbose=-1, objective="MAE", loss_function="MAE", boosting_type="Ordered", task_type="GPU")
+			model.fit(X_tr, 
+				  y_tr, 
+				  eval_set=[(X_val, y_val)], 
+#					   eval_metric='mae',
+				  verbose=2500, 
+				  early_stopping_rounds=500)
+			oof[val_idx] = model.predict(X_val)
+
+			#feature importance
+			fold_importance_df = pd.DataFrame()
+			fold_importance_df["Feature"] = train_columns
+			fold_importance_df["importance"] = model.feature_importances_[:len(train_columns)]
+			fold_importance_df["fold"] = fold_ + 1
+			feature_importance_df = pd.concat([feature_importance_df, fold_importance_df], axis=0)
+			#predictions
+#			 if PREDICTION:
+
+			predictions += model.predict(test_X[train_columns]) / folds.n_splits
+			train_score.append(model.best_score_['learn']["MAE"])
+
+		cv_score = mean_absolute_error(train_y, oof)
+		print(f"After {n_fold} test_CV = {cv_score:.3f} | train_CV = {np.mean(train_score):.3f} | {cv_score-np.mean(train_score):.3f}", end=" ")
+
+		today = str(date.today())
+		#submission = pd.read_csv('../input/LANL-Earthquake-Prediction/sample_submission.csv')
+
+		base_dir = '/tmp/LANL-Earthquake-Prediction-train-csv-gzipped'
+		submission = pd.read_csv(os.path.join(base_dir, 'sample_submission.csv'))
+
+		submission["time_to_failure"] = predictions
+		submission.to_csv(f'CatBoost_{today}_test_{cv_score:.3f}_train_{np.mean(train_score):.3f}.csv', index=False)
+		print(submission)
+
+
+
+
+
 
 
 	# Ok, now we have to separate the init of the class and the model creation, because we can later recreate the model
@@ -399,6 +678,7 @@ class Rnn:
 
 		#self.model.fit(x_train, y_train, callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
 		self.model.fit(x_train, y_train, validation_data=(x_valid, y_valid), callbacks=callbacks_list, epochs=epochs, batch_size=batch_size)
+		#self.model.fit(x_train, y_train, callbacks=callbacks_list)
 		print(f'Saving Keras model to: {model_name}')
 		self.model.save(model_name)
 
@@ -424,6 +704,9 @@ class Rnn:
 
 	def _create_x_y(self, training_set: pd.core.frame.DataFrame, validation_set: pd.core.frame.DataFrame):
 
+		if 'seg_id' in validation_set.columns:
+			validation_set.drop(columns=['seg_id'], inplace=True)
+
 		train_len = len(training_set.index)
 		valid_len = len(validation_set.index)
 
@@ -431,8 +714,8 @@ class Rnn:
 		y_valid   = None
 
 		if self.config.do_rescale:
-			print(f'Performing MaxMinScale across all the {self.num_features} features')
-			# Now we MaxMinScale (or StandardScale) the two separate datasets (train and test/validation set) because the two dataset have very different
+			print(f'Performing MinMaxScale across all the {self.num_features} features')
+			# Now we MinMaxScale (or StandardScale) the two separate datasets (train and test/validation set) because the two dataset have very different
 			# behavior and properties and it makes no sense to try to handle them as "an unique thing".
 			x_train_rescaled = self.scaler.fit_transform(training_set.iloc[:  , :self.num_features])
 			if valid_len != 0:
@@ -441,6 +724,7 @@ class Rnn:
 
 			# The training set now is: the rescaled set, up to train_len rows and up to total columns - 1 (the time_to_failure)
 			x_train = np.array(x_train_rescaled)
+			print(f'y index will be: {self.num_features} - column: {training_set.columns[self.num_features]}')
 			y_train = np.array(training_set.iloc[: , self.num_features])
 
 			# In a similar way, the validation set now is: the rescaled set, up to valid_len rows and up to total columns - 1 (the time_to_failure)
@@ -495,7 +779,7 @@ class Rnn:
 
 			self.create_model(len(cols))
 
-		if not self.config.do_use_lgbm_model and not self.config.do_use_xgboost_model:
+		if not self.config.do_use_lgbm_model and not self.config.do_use_xgboost_model and not self.config.model == 'lgbm-trimmed' and not self.config.model == 'catboost':
 			# Now we just have to reshape x_ sets to "add one dimension" so to make Keras happy :)
 			x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
 			if valid_len != 0:
@@ -520,11 +804,11 @@ class Rnn:
 
 		print(50*'-', 'Training set')
 		print(x_train[:10, :])
-		print(y_train)
+		print('y_train:', y_train)
 		if valid_len != 0:
 			print(50*'-', 'Validation set')
 			print(x_valid[:10, :])
-			print(y_valid)
+			print('y_valid:', y_valid)
 		print(80*'-')
 
 		return x_train, y_train, x_valid, y_valid
@@ -544,7 +828,7 @@ class Rnn:
 		valid_len = len(validation_set.index)
 
 
-		# Now we MaxMinScale (or StandardScale) on the whole dataset (train + test/validation set) because, as said on Kaggle discussions, the mean
+		# Now we MinMaxScale (or StandardScale) on the whole dataset (train + test/validation set) because, as said on Kaggle discussions, the mean
 		# of an acoustic signal doesn't have much sense (and it's probably a bias of the instrument). So we just remove it across the whole dataset.
 		x_train_valid_rescaled = self.scaler.fit_transform(train_plus_validation_set.iloc[:, :self.num_features])
 
